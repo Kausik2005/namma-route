@@ -110,6 +110,13 @@ button { font: inherit; cursor: pointer; }
 .opt .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .opt .v { font-family: var(--font-mono); font-size: 16px; font-variant-numeric: tabular-nums; }
 .opt .s { color: var(--muted); font-size: 12.5px; }
+.opt .win { color: var(--good); font-weight: 600; }
+.lines { display: inline-flex; gap: 3px; vertical-align: middle; }
+.lines i { width: 10px; height: 4px; border-radius: 2px; display: inline-block; }
+.losses { display: grid; gap: 6px; }
+.losses ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.losses li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.losses .plus { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .link-btn { display: inline-flex; gap: 6px; align-items: center; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 8px 14px; border-radius: 9px; font-weight: 600; }
 .empty { color: var(--muted); }
@@ -146,7 +153,7 @@ footer a { color: var(--accent); }
   <header>
     <div class="brand">
       <h1>Namma Route <span>Live</span></h1>
-      <p class="tag">Bengaluru routes on live and predicted Google traffic.</p>
+      <p class="tag">Bengaluru on live Google traffic: the fastest road, the best hour, or the metro.</p>
     </div>
     <div class="status" id="status"><i></i><span>No API key yet</span></div>
   </header>
@@ -463,64 +470,156 @@ function stopOrder(route) {
   const o = route.optimizedIntermediateWaypointIndex;
   return Array.isArray(o) && o.length === n && o.every(i => i >= 0) ? o : [...Array(n).keys()];
 }
+// ---------- traffic hotspots and metro ----------
+function hav(aLat, aLng, bLat, bLng) {
+  const r = Math.PI / 180, dLat = (bLat - aLat) * r, dLng = (bLng - aLng) * r;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(s));
+}
+function nearestPlace(p) {
+  let best = null, bd = Infinity;
+  for (const [n, lat, lon] of PLACES) { const d = hav(p.lat, p.lng, lat, lon); if (d < bd) { bd = d; best = n; } }
+  return bd <= 2.5 ? best : null;
+}
+// Slow and jammed stretches Google reports on the route, named after the nearest well-known place.
+function hotspots(route) {
+  if (!route.polyline) return [];
+  const path = decode(route.polyline.encodedPolyline);
+  const out = [];
+  (route.travelAdvisory?.speedReadingIntervals || []).forEach(iv => {
+    if (iv.speed !== "SLOW" && iv.speed !== "TRAFFIC_JAM") return;
+    const a = iv.startPolylinePointIndex || 0, b = Math.min(iv.endPolylinePointIndex ?? path.length - 1, path.length - 1);
+    let len = 0; for (let i = a; i < b; i++) len += hav(path[i].lat, path[i].lng, path[i + 1].lat, path[i + 1].lng);
+    const near = nearestPlace(path[Math.floor((a + b) / 2)]);
+    const last = out[out.length - 1];
+    if (last && last.near === near && last.speed === iv.speed) last.km += len; else out.push({ speed: iv.speed, km: len, near });
+  });
+  return out.filter(h => h.km >= 0.3).sort((x, y) => (y.speed === "TRAFFIC_JAM") - (x.speed === "TRAFFIC_JAM") || y.km - x.km).slice(0, 4);
+}
+const MASK_TRANSIT = ["routes.duration","routes.distanceMeters","routes.polyline.encodedPolyline","routes.legs.startLocation","routes.legs.endLocation",
+  "routes.legs.steps.travelMode","routes.legs.steps.staticDuration","routes.legs.steps.distanceMeters","routes.legs.steps.navigationInstruction.instructions",
+  "routes.legs.steps.transitDetails.headsign","routes.legs.steps.transitDetails.stopCount","routes.legs.steps.transitDetails.transitLine.name",
+  "routes.legs.steps.transitDetails.transitLine.nameShort","routes.legs.steps.transitDetails.transitLine.color",
+  "routes.legs.steps.transitDetails.stopDetails.departureStop.name","routes.legs.steps.transitDetails.stopDetails.arrivalStop.name"].join(",");
+const transitSteps = t => (t.legs || []).flatMap(l => l.steps || []);
+const rides = t => transitSteps(t).filter(s => s.transitDetails).map(s => ({ name: s.transitDetails.transitLine?.nameShort || s.transitDetails.transitLine?.name || "Transit", color: s.transitDetails.transitLine?.color || "var(--muted)", d: s.transitDetails }));
+const walkSecs = t => transitSteps(t).filter(s => s.travelMode === "WALK").reduce((a, s) => a + secs(s.staticDuration), 0);
+async function checkTransit() {
+  if (!result || result.transitLoading) return;
+  result.transitLoading = true; renderSummary();
+  const req = result.req;
+  const body = { origin: waypoint(req.from), destination: waypoint(req.to), travelMode: "TRANSIT", languageCode: "en-IN", regionCode: "in", units: "METRIC", transitPreferences: { allowedTravelModes: ["RAIL"] } };
+  if (result.dep.getTime() > Date.now() + 60 * 1000) body.departureTime = result.dep.toISOString();
+  const forResult = result;
+  try {
+    let j = await computeRoutes(body, MASK_TRANSIT), railOnly = true;
+    if (!j.routes?.length) { delete body.transitPreferences; j = await computeRoutes(body, MASK_TRANSIT); railOnly = false; }
+    const r = j.routes?.[0];
+    forResult.transit = r ? { ...r, d: secs(r.duration), railOnly } : { none: true };
+  } catch (e) { forResult.transit = { error: friendly(e) }; }
+  forResult.transitLoading = false;
+  if (forResult === result) renderSummary();
+}
+
+// ---------- render ----------
+const isTransit = () => selected === "transit" && result.transit && result.transit.d;
+const shown = () => isTransit() ? result.transit : result.routes[selected];
 function gmapsURL(route) {
-  const enc = p => p.lat != null ? `${p.lat},${p.lon}` : (BY_NAME.get(p.text.toLowerCase()) ? `${BY_NAME.get(p.text.toLowerCase()).lat},${BY_NAME.get(p.text.toLowerCase()).lon}` : waypoint(p).address);
-  const q = new URLSearchParams({ api: "1", origin: enc(result.req.from), destination: enc(result.req.to), travelmode: "driving" });
-  const ord = stopOrder(route);
-  if (ord.length) q.set("waypoints", ord.map(i => enc(result.req.stops[i])).join("|"));
-  if (result.req.tolls) q.set("avoid", "tolls");
+  const enc = p => { if (p.lat != null) return `${p.lat},${p.lon}`; const k = BY_NAME.get(p.text.toLowerCase()); return k ? `${k.lat},${k.lon}` : waypoint(p).address; };
+  const transit = route === result.transit;
+  const q = new URLSearchParams({ api: "1", origin: enc(result.req.from), destination: enc(result.req.to), travelmode: transit ? "transit" : "driving" });
+  if (!transit) {
+    const ord = stopOrder(route);
+    if (ord.length) q.set("waypoints", ord.map(i => enc(result.req.stops[i])).join("|"));
+    if (result.req.tolls) q.set("avoid", "tolls");
+  }
   return "https://www.google.com/maps/dir/?" + q.toString();
 }
 function render() { renderSummary(); renderSteps(); drawRoutes(); }
 function renderSummary() {
   const el = $("#summary");
   if (!result) return;
-  const r = result.routes[selected], req = result.req;
-  const delay = Math.max(0, r.d - r.s), ratio = r.s ? r.d / r.s : 1, [cls, lab] = band(ratio);
+  const req = result.req, T = result.transit, r = shown(), transit = isTransit();
+  const road = result.routes[result.fastest];
   const arrive = new Date(result.dep.getTime() + r.d * 1000);
-  const ord = stopOrder(r);
-  const names = [req.from.text, ...ord.map(i => req.stops[i].text), req.to.text].map(esc).join(" → ");
   const leaveTxt = req.when === "later" ? `${ISTDAY.format(result.dep)} ${istClock(result.dep)}` : `now (${istClock(result.dep)})`;
-  const reordered = req.stops.length >= 2 && ord.some((v, i) => v !== i);
-  let compare = "";
-  if (result.routes.length > 1) {
-    compare = `<div class="compare">` + result.routes.map(x => {
-      const title = x.idx === result.fastest ? "Fastest" : `Option ${x.idx + 1}`;
-      const extra = x.idx === result.fastest ? "" : ` · +${dur(x.d - result.routes[result.fastest].d)}`;
-      return `<button class="opt ${x.idx === selected ? "active" : ""}" type="button" data-route="${x.idx}"><span class="k">${title}</span><span class="v">${dur(x.d)} · ${km(x.distanceMeters || 0)}</span><span class="s">${x.description ? "via " + esc(x.description) : "Google route"}${extra}</span></button>`;
-    }).join("") + `</div>`;
+  let names, chips, extra = "";
+  if (transit) {
+    names = `${esc(req.from.text)} → ${esc(req.to.text)} by ${T.railOnly ? "Namma Metro" : "public transport"}`;
+    const gain = road.d - T.d;
+    chips = `<span class="chip">${rides(T).map(x => `<i style="background:${esc(x.color)}"></i>${esc(x.name)}`).join(" → ") || "Walking only"}</span>
+      <span class="chip"><i style="background:var(--${gain > 0 ? "good" : "warn"})"></i>${gain >= 60 ? dur(gain) + " quicker than driving" : gain > -60 ? "About the same as driving" : dur(-gain) + " slower than driving"}</span>
+      <span class="chip">Walking ${dur(walkSecs(T))}</span>`;
+  } else {
+    const delay = Math.max(0, r.d - r.s), [cls, lab] = band(r.s ? r.d / r.s : 1);
+    const ord = stopOrder(r), reordered = req.stops.length >= 2 && ord.some((v, i) => v !== i);
+    names = [req.from.text, ...ord.map(i => req.stops[i].text), req.to.text].map(esc).join(" → ");
+    chips = `<span class="chip"><i style="background:var(--${cls})"></i>${lab} traffic</span>
+      <span class="chip">${delay >= 60 ? "Traffic adds " + dur(delay) + " over empty roads" : "Roads are close to clear"}</span>
+      <span class="chip">${req.when === "later" ? "Predicted traffic" : "Live traffic · checked " + istClock(result.at)}</span>
+      ${req.veh === "TWO_WHEELER" ? `<span class="chip">Two-wheeler routing</span>` : ""}
+      ${req.stops.length >= 2 && req.optimise ? `<span class="chip"><i style="background:var(--good)"></i>${reordered ? "Stops reordered for the fastest trip" : "Your stop order is already the fastest"}</span>` : ""}`;
+    const hs = hotspots(r);
+    if (hs.length) extra = `<div class="losses"><div class="label">Where the traffic is</div><ul>${hs.map(h => `<li><span class="plus" style="color:var(--${h.speed === "TRAFFIC_JAM" ? "bad" : "warn"})">${h.km.toFixed(1)} km</span><span><b>${h.speed === "TRAFFIC_JAM" ? "Jammed" : "Slow"}</b>${h.near ? " near " + esc(h.near) : ""}</span></li>`).join("")}</ul></div>`;
+  }
+  const cards = result.routes.map(x => {
+    const title = x.idx === result.fastest ? "Fastest by road" : `Road option ${x.idx + 1}`;
+    const more = x.idx === result.fastest ? "" : ` · +${dur(x.d - road.d)}`;
+    return `<button class="opt ${x.idx === selected ? "active" : ""}" type="button" data-route="${x.idx}"><span class="k">${title}</span><span class="v">${dur(x.d)} · ${km(x.distanceMeters || 0)}</span><span class="s">${x.description ? "via " + esc(x.description) : "Google route"}${more}</span></button>`;
+  });
+  if (T && T.d) cards.push(`<button class="opt ${transit ? "active" : ""}" type="button" data-route="transit"><span class="k">${T.railOnly ? "Namma Metro" : "Public transport"} <span class="lines">${rides(T).map(x => `<i style="background:${esc(x.color)}"></i>`).join("")}</span></span><span class="v">${dur(T.d)}</span><span class="s">${rides(T).map(x => esc(x.name)).join(" → ") || "Walk"}${T.d < road.d - 60 ? ` · <span class="win">saves ${dur(road.d - T.d)}</span>` : ""}</span></button>`);
+  let metroBtn = "";
+  if (!req.stops.length) {
+    if (result.transitLoading) metroBtn = `<span class="note">Checking the metro…</span>`;
+    else if (!T) metroBtn = `<button class="pill-btn" type="button" id="checkMetro">Compare with Namma Metro</button><span class="note">1 request</span>`;
+    else if (T.none) metroBtn = `<span class="note">Google found no public transport for this trip.</span>`;
+    else if (T.error) metroBtn = `<span class="note err">${esc(T.error)}</span>`;
   }
   el.innerHTML = `
     <div class="sum-top">
       <div style="display:grid;gap:6px;min-width:0">
         <div class="trip-name">${names}</div>
-        <div class="meta">${km(r.distanceMeters || 0)} · leave ${leaveTxt} · arrive ${istClock(arrive)}${r.description ? " · via " + esc(r.description) : ""}</div>
+        <div class="meta">${km(r.distanceMeters || 0)} · leave ${leaveTxt} · arrive ${istClock(arrive)}${!transit && r.description ? " · via " + esc(r.description) : ""}</div>
       </div>
       <div class="eta">${etaHTML(r.d)}</div>
     </div>
-    <div class="chips">
-      <span class="chip"><i style="background:var(--${cls})"></i>${lab} traffic</span>
-      <span class="chip">${delay >= 60 ? "Traffic adds " + dur(delay) + " over empty roads" : "Roads are close to clear"}</span>
-      <span class="chip">${req.when === "later" ? "Predicted traffic" : "Live traffic · checked " + istClock(result.at)}</span>
-      ${req.veh === "TWO_WHEELER" ? `<span class="chip">Two-wheeler routing</span>` : ""}
-      ${req.stops.length >= 2 && req.optimise ? `<span class="chip"><i style="background:var(--good)"></i>${reordered ? "Stops reordered for the fastest trip" : "Your stop order is already the fastest"}</span>` : ""}
-    </div>
-    ${compare}
-    <div class="actions"><a class="link-btn" href="${esc(gmapsURL(r))}" target="_blank" rel="noopener">Open in Google Maps ↗</a><span class="note">Opens the same stops in the Google Maps app for turn-by-turn.</span></div>`;
-  el.querySelectorAll("[data-route]").forEach(b => b.addEventListener("click", () => { selected = +b.dataset.route; render(); }));
+    <div class="chips">${chips}</div>
+    ${extra}
+    ${cards.length > 1 ? `<div class="compare">${cards.join("")}</div>` : ""}
+    <div class="actions"><a class="link-btn" href="${esc(gmapsURL(r))}" target="_blank" rel="noopener">Open in Google Maps ↗</a>${metroBtn}</div>`;
 }
+$("#summary").addEventListener("click", e => {
+  if (e.target.closest("#checkMetro")) { checkTransit(); return; }
+  const b = e.target.closest("[data-route]");
+  if (b) { selected = b.dataset.route === "transit" ? "transit" : +b.dataset.route; render(); }
+});
 function renderSteps() {
-  const el = $("#steps"), r = result.routes[selected];
-  const ord = stopOrder(r);
+  const el = $("#steps"), r = shown();
   let h = "";
-  (r.legs || []).forEach((leg, li) => {
-    (leg.steps || []).forEach(st => {
-      const ins = st.navigationInstruction?.instructions;
-      if (!ins) return;
-      h += `<li><div>${esc(ins)}</div><div class="num">${km(st.distanceMeters || 0)}</div></li>`;
+  if (isTransit()) {
+    let walk = null;
+    const flush = () => { if (walk) h += `<li><div>Walk</div><div class="num">${dur(walk.s)} · ${km(walk.m)}</div></li>`; walk = null; };
+    transitSteps(r).forEach(st => {
+      if (st.transitDetails) {
+        flush();
+        const t = st.transitDetails, line = t.transitLine?.nameShort || t.transitLine?.name || "Transit";
+        h += `<li><div><b style="color:${esc(t.transitLine?.color || "inherit")}">${esc(line)}</b>${t.headsign ? " toward " + esc(t.headsign) : ""}<br><span class="note">${esc(t.stopDetails?.departureStop?.name || "")} → ${esc(t.stopDetails?.arrivalStop?.name || "")}${t.stopCount ? ` · ${t.stopCount} stops` : ""}</span></div><div class="num">${dur(secs(st.staticDuration))}</div></li>`;
+      } else {
+        walk = walk || { s: 0, m: 0 };
+        walk.s += secs(st.staticDuration); walk.m += st.distanceMeters || 0;
+      }
     });
-    if (li < r.legs.length - 1) h += `<li class="stopline"><div>Stop ${li + 1}: ${esc(result.req.stops[ord[li]].text)} · leg ${dur(secs(leg.duration))}</div></li>`;
-  });
+    flush();
+  } else {
+    const ord = stopOrder(r);
+    (r.legs || []).forEach((leg, li) => {
+      (leg.steps || []).forEach(st => {
+        const ins = st.navigationInstruction?.instructions;
+        if (ins) h += `<li><div>${esc(ins)}</div><div class="num">${km(st.distanceMeters || 0)}</div></li>`;
+      });
+      if (li < r.legs.length - 1) h += `<li class="stopline"><div>Stop ${li + 1}: ${esc(result.req.stops[ord[li]].text)} · leg ${dur(secs(leg.duration))}</div></li>`;
+    });
+  }
   el.innerHTML = h || `<li><div class="empty">Google returned no step-by-step instructions for this route.</div></li>`;
   $("#dirNote").textContent = `${km(r.distanceMeters || 0)} · ${dur(r.d)}`;
 }
@@ -530,20 +629,20 @@ function drawRoutes() {
   clearOverlays();
   const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#6a3d9a";
   const bounds = new google.maps.LatLngBounds();
-  result.routes.forEach(r => {
-    if (r.idx === selected || !r.polyline) return;
-    const path = decode(r.polyline.encodedPolyline);
-    const line = new google.maps.Polyline({ map, path, strokeColor: "#9aa0a6", strokeOpacity: 0.9, strokeWeight: 6, zIndex: 1, clickable: true });
-    line.addListener("click", () => { selected = r.idx; render(); });
+  const r = shown(), transit = isTransit();
+  const others = result.routes.filter(x => transit || x.idx !== selected);
+  others.forEach(x => {
+    if (!x.polyline) return;
+    const line = new google.maps.Polyline({ map, path: decode(x.polyline.encodedPolyline), strokeColor: "#9aa0a6", strokeOpacity: 0.9, strokeWeight: 6, zIndex: 1 });
+    line.addListener("click", () => { selected = x.idx; render(); });
     overlays.push(line);
   });
-  const r = result.routes[selected];
   if (r.polyline) {
     const path = decode(r.polyline.encodedPolyline);
     path.forEach(p => bounds.extend(p));
     overlays.push(new google.maps.Polyline({ map, path, strokeColor: "#ffffff", strokeOpacity: 1, strokeWeight: 10, zIndex: 2, clickable: false }));
     overlays.push(new google.maps.Polyline({ map, path, strokeColor: accent, strokeOpacity: 1, strokeWeight: 6, zIndex: 3, clickable: false }));
-    (r.travelAdvisory?.speedReadingIntervals || []).forEach(iv => {
+    if (!transit) (r.travelAdvisory?.speedReadingIntervals || []).forEach(iv => {
       if (iv.speed !== "SLOW" && iv.speed !== "TRAFFIC_JAM") return;
       const a = iv.startPolylinePointIndex || 0, b = iv.endPolylinePointIndex ?? path.length - 1;
       overlays.push(new google.maps.Polyline({ map, path: path.slice(a, b + 1), strokeColor: iv.speed === "SLOW" ? "#e8a219" : "#d93025", strokeOpacity: 1, strokeWeight: 6, zIndex: 4, clickable: false }));
@@ -559,7 +658,7 @@ function drawRoutes() {
   };
   if (legs.length) {
     marker(legs[0].startLocation, "A", result.req.from.text);
-    legs.slice(0, -1).forEach((l, i) => marker(l.endLocation, String(i + 1), result.req.stops[ord[i]]?.text || "Stop"));
+    if (!transit) legs.slice(0, -1).forEach((l, i) => marker(l.endLocation, String(i + 1), result.req.stops[ord[i]]?.text || "Stop"));
     marker(legs[legs.length - 1].endLocation, "B", result.req.to.text);
   }
   if (!bounds.isEmpty()) map.fitBounds(bounds, 48);

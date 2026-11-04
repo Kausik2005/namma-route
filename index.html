@@ -9,25 +9,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: a control rail on the left, the working surface (summary, map, departure chart, directions) on the right; stacks on phones. */
+/* Layout: control rail left; working surface right (summary, map, departure chart + directions, weekly rhythm); stacks on phones. */
 :root {
-  --bg: #eef0ec;
-  --surface: #ffffff;
-  --sunk: #f6f7f4;
-  --ink: #1a2026;
-  --muted: #5b646c;
-  --line: #d8dcd4;
-  --accent: #6a3d9a;          /* jacaranda */
-  --accent-soft: #efe7f8;
-  --accent-ink: #ffffff;
-  --road: #c3c8c0;
-  --water: #cddfe9;
-  --park: #d8e6cc;
-  --map: #f8f9f6;
-  --good: #2c8548;
-  --warn: #c3860c;
-  --bad: #c8432b;
-  --worst: #8a1d22;
+  --bg: #eef0ec; --surface: #ffffff; --sunk: #f6f7f4; --ink: #1a2026; --muted: #5b646c; --line: #d8dcd4;
+  --accent: #6a3d9a; --accent-soft: #efe7f8; --accent-ink: #ffffff;
+  --road: #c3c8c0; --water: #cddfe9; --park: #d8e6cc; --map: #f8f9f6;
+  --good: #2c8548; --warn: #c3860c; --bad: #c8432b; --worst: #8a1d22;
+  --m-purple: #8a4bbd; --m-green: #2f9a56; --m-yellow: #d9a514;
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -38,6 +26,7 @@
     --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
     --road: #3a444d; --water: #1b3140; --park: #1d3022; --map: #151b21;
     --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
+    --m-purple: #b07ee0; --m-green: #4cc27a; --m-yellow: #f0c23c;
     color-scheme: dark;
   }
 }
@@ -46,6 +35,7 @@
   --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
   --road: #3a444d; --water: #1b3140; --park: #1d3022; --map: #151b21;
   --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
+  --m-purple: #b07ee0; --m-green: #4cc27a; --m-yellow: #f0c23c;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -65,17 +55,15 @@ h1 span { color: var(--accent); }
 .kn { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
 .layout { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
 @media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-.rail { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 20px; }
+.rail, .summary, .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.rail { padding: 18px; display: grid; gap: 20px; }
 .group { display: grid; gap: 10px; }
 .label { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
 .field { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
-.pin { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; font-weight: 500;
-  background: var(--accent); color: var(--accent-ink); }
+.pin { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; background: var(--accent); color: var(--accent-ink); }
 .pin.stop { background: var(--surface); color: var(--accent); border: 2px solid var(--accent); }
-select, input[type="number"] {
-  width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px;
-}
-select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select, input[type="number"] { width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
+select:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button { font: inherit; cursor: pointer; }
 .icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
 .icon-btn:hover { color: var(--ink); border-color: var(--muted); }
@@ -98,10 +86,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .check small { display: block; color: var(--muted); }
 .pill-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 500; }
 .pill-btn:hover { border-color: var(--accent); color: var(--accent); }
-.dwell { display: grid; grid-template-columns: minmax(0,1fr) 84px; gap: 8px; align-items: center; color: var(--muted); }
+.dwell { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; align-items: center; color: var(--muted); }
+.note { color: var(--muted); font-size: 12.5px; }
 
 .work { display: grid; gap: 18px; min-width: 0; }
-.summary { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: grid; gap: 14px; }
+.summary { padding: 18px 20px; display: grid; gap: 14px; }
 .sum-top { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: flex-end; justify-content: space-between; }
 .eta { font-family: var(--font-display); font-weight: 700; font-size: 46px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .eta small { font-size: 20px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
@@ -113,24 +102,30 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .callout { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; background: var(--accent-soft); border-radius: 11px; padding: 12px 14px; }
 .callout .big { font-family: var(--font-mono); font-size: 18px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .callout p { margin: 0; }
-@media (max-width: 520px) { .callout { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 520px) { .callout { grid-template-columns: minmax(0, 1fr); } }
 .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
 .opt { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; display: grid; gap: 2px; background: var(--surface); text-align: left; color: var(--ink); }
 .opt.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.opt .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.opt .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .opt .v { font-family: var(--font-mono); font-size: 16px; font-variant-numeric: tabular-nums; }
 .opt .s { color: var(--muted); font-size: 12.5px; }
+.opt .win { color: var(--good); font-weight: 600; }
+.lines { display: inline-flex; gap: 3px; }
+.lines i { width: 10px; height: 4px; border-radius: 2px; display: inline-block; }
+.losses { display: grid; gap: 6px; }
+.losses ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.losses li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.losses .plus { font-family: var(--font-mono); color: var(--bad); text-align: right; font-variant-numeric: tabular-nums; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .link-btn { display: inline-flex; gap: 6px; align-items: center; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 8px 14px; border-radius: 9px; font-weight: 600; }
 .link-btn:hover { filter: brightness(1.08); }
-.note { color: var(--muted); font-size: 12.5px; }
 
 .mapwrap { position: relative; height: clamp(360px, 62vh, 640px); background: var(--map); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; touch-action: none; }
 #map { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
 #map.dragging { cursor: grabbing; }
-.map-tools { position: absolute; top: 10px; right: 10px; display: grid; gap: 6px; }
+.map-tools { position: absolute; top: max(10px, env(safe-area-inset-top, 0px)); right: 10px; display: grid; gap: 6px; }
 .map-tools .icon-btn { background: var(--surface); width: 34px; height: 34px; font-size: 17px; color: var(--ink); }
-.legend { position: absolute; left: 10px; bottom: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; font-size: 12px; max-width: calc(100% - 20px); }
+.legend { position: absolute; left: 10px; bottom: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; font-size: 12px; max-width: calc(100% - 20px); }
 .legend .row { gap: 10px; }
 .legend b { font-weight: 600; }
 .sw { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
@@ -141,22 +136,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .lower { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 @media (max-width: 1100px) { .lower { grid-template-columns: minmax(0, 1fr); } }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 12px; min-width: 0; }
+.card { padding: 16px 18px; display: grid; gap: 12px; min-width: 0; }
 h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
 .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.chart-scroll { overflow-x: auto; }
+.scroll-x { overflow-x: auto; }
 #chart { width: 100%; min-width: 520px; height: auto; display: block; }
-#chart .bar { cursor: pointer; }
-#chart .bar:hover { opacity: .8; }
+#week { width: 100%; min-width: 640px; height: auto; display: block; }
+#chart .bar, #week .cell { cursor: pointer; }
+#chart .bar:hover, #week .cell:hover { opacity: .8; }
 .steps { list-style: none; margin: 0; padding: 0; display: grid; }
 .steps li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); align-items: start; }
 .steps li:first-child { border-top: 0; }
 .steps .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
+.steps .dot.bar { border-radius: 3px; height: 16px; margin-top: 3px; }
 .steps .road { font-weight: 600; }
 .steps .via { color: var(--muted); font-size: 12.5px; }
 .steps .num { font-family: var(--font-mono); font-size: 12.5px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .steps .num b { color: var(--ink); font-weight: 500; }
-.steps li.stopline { grid-template-columns: 16px minmax(0,1fr); color: var(--accent); font-weight: 600; }
+.steps li.stopline { grid-template-columns: 16px minmax(0, 1fr); color: var(--accent); font-weight: 600; }
 .steps li.stopline .dot { background: var(--accent); }
 footer { color: var(--muted); font-size: 12.5px; max-width: 80ch; }
 footer p { margin: 0 0 6px; }
@@ -168,13 +165,11 @@ footer p { margin: 0 0 6px; }
 </style>
 </head>
 <body>
-
-
 <div class="app">
   <header>
     <div class="brand">
       <h1>Namma <span>Route</span></h1>
-      <p class="tag">Find the quickest way across Bengaluru, and the best time to leave.</p>
+      <p class="tag">The quickest way across Bengaluru: which road, which hour, or whether to take the metro.</p>
     </div>
     <div class="kn">ಬೆಂಗಳೂರು · typical-traffic model</div>
   </header>
@@ -183,7 +178,7 @@ footer p { margin: 0 0 6px; }
     <aside class="rail" aria-label="Trip settings">
       <div class="group">
         <div class="label">Trip</div>
-        <div class="field"><span class="pin" aria-hidden="true">A</span><select id="from" aria-label="Start"></select><button class="icon-btn" id="swap" title="Swap start and destination" aria-label="Swap start and destination">⇅</button></div>
+        <div class="field"><span class="pin" aria-hidden="true">A</span><select id="from" aria-label="Start"></select><button class="icon-btn" id="swap" type="button" title="Swap start and destination" aria-label="Swap start and destination">⇅</button></div>
         <div id="stops" class="group"></div>
         <div class="field"><span class="pin" aria-hidden="true">B</span><select id="to" aria-label="Destination"></select><span></span></div>
         <button class="ghost" id="addStop" type="button">+ Add a stop on the way</button>
@@ -217,7 +212,7 @@ footer p { margin: 0 0 6px; }
       <section class="summary" id="summary" aria-live="polite"></section>
 
       <div class="mapwrap">
-        <svg id="map" role="img" aria-label="Map of Bengaluru's main roads with the suggested route"></svg>
+        <svg id="map" role="img" aria-label="Map of Bengaluru's main roads and metro lines with the suggested route"></svg>
         <div class="tapmode">
           <div class="seg" role="radiogroup" aria-label="Tapping a junction sets">
             <label><input type="radio" name="tap" value="from" checked><span>Tap sets A</span></label>
@@ -226,10 +221,10 @@ footer p { margin: 0 0 6px; }
           </div>
         </div>
         <div class="map-tools">
-          <button class="icon-btn" id="zin" aria-label="Zoom in">+</button>
-          <button class="icon-btn" id="zout" aria-label="Zoom out">−</button>
-          <button class="icon-btn" id="zfit" aria-label="Fit route" title="Fit route">⤢</button>
-          <button class="icon-btn" id="zall" aria-label="Show whole city" title="Whole city">◎</button>
+          <button class="icon-btn" id="zin" type="button" aria-label="Zoom in">+</button>
+          <button class="icon-btn" id="zout" type="button" aria-label="Zoom out">−</button>
+          <button class="icon-btn" id="zfit" type="button" aria-label="Fit route" title="Fit route">⤢</button>
+          <button class="icon-btn" id="zall" type="button" aria-label="Show whole city" title="Whole city">◎</button>
         </div>
         <div class="legend" id="legend"></div>
       </div>
@@ -237,8 +232,8 @@ footer p { margin: 0 0 6px; }
       <div class="lower">
         <section class="card">
           <div class="card-head"><h2>When should you leave?</h2><span class="note" id="chartNote"></span></div>
-          <div class="chart-scroll"><svg id="chart" viewBox="0 0 720 230" role="img" aria-label="Trip time by departure time"></svg></div>
-          <div class="note">Each bar is the trip time if you leave at that 15-minute slot. Tap a bar to plan for that time.</div>
+          <div class="scroll-x"><svg id="chart" viewBox="0 0 720 240" role="img" aria-label="Trip time by departure time"></svg></div>
+          <div class="note">Bars show the road trip for each 15-minute departure. The dashed line is the metro alternative, which barely moves with traffic. Tap a bar to plan for that time.</div>
         </section>
         <section class="card">
           <div class="card-head"><h2>Directions</h2><span class="note" id="dirNote"></span></div>
@@ -246,9 +241,16 @@ footer p { margin: 0 0 6px; }
         </section>
       </div>
 
+      <section class="card">
+        <div class="card-head"><h2>Your week on this trip</h2><span class="note" id="weekNote"></span></div>
+        <div class="scroll-x"><svg id="week" viewBox="0 0 760 214" role="img" aria-label="Trip time for every day and half hour"></svg></div>
+        <div class="note">Every cell is the road trip time for that day and departure time, coloured against the quickest one. Tap a cell to plan for it. Useful for picking office days and hours.</div>
+      </section>
+
       <footer>
-        <p>Routes run on a simplified network of about 80 junctions and the arterial roads between them (ORR, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd and others). Positions are approximate and road lengths are estimated.</p>
-        <p>Travel times come from a typical-day congestion model, not live traffic: morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks. Use it to compare routes and departure times, then open the trip in Google Maps for turn-by-turn and today's conditions.</p>
+        <p>Roads: a simplified network of about 80 junctions and the arterial roads between them (ORR, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd and others). Positions are approximate and road lengths are estimated.</p>
+        <p>Traffic: a typical-day model, not live data. It has morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks.</p>
+        <p>Metro: the Purple, Green and Yellow lines with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
       </footer>
     </main>
   </div>
@@ -257,8 +259,9 @@ footer p { margin: 0 0 6px; }
 <script>
 (() => {
 "use strict";
-// ---------- Network ----------
-// id, name, lat, lon, area, major-label
+/* ============================================================
+   Data: road network, metro, lakes and parks
+   ============================================================ */
 const RAW_NODES = [
   ["majestic","Majestic (Kempegowda Bus Stn)",12.9767,77.5713,"Central",1],
   ["krmarket","KR Market",12.9634,77.5770,"Central",0],
@@ -475,69 +478,100 @@ const RAW_EDGES = [
 // Lakes and parks for orientation: lat, lon, rx km, ry km, rotation deg
 const LAKES = [[12.9350,77.6610,1.6,.55,-25],[12.9830,77.6205,.35,.3,0],[13.0455,77.5885,.5,.35,10],[12.9100,77.6150,.55,.4,0],[12.9230,77.6400,.35,.25,0],[12.9450,77.7330,.9,.4,-15],[13.0090,77.5740,.25,.18,0],[13.0950,77.5870,.6,.35,20]];
 const PARKS = [[12.9763,77.5929,.65,.5,30],[12.9507,77.5848,.5,.45,0]];
+// Namma Metro. Stations in running order; shared names are interchanges.
+const METRO = [
+  { id: "purple", name: "Purple Line", color: "var(--m-purple)", run: 2.2, headway: [3.5, 6], stations: [
+    ["Whitefield (Kadugodi)",12.9957,77.7579],["Hopefarm Channasandra",12.9876,77.7540],["Kadugodi Tree Park",12.9857,77.7470],["Pattandur Agrahara",12.9880,77.7380],
+    ["Sri Sathya Sai Hospital",12.9810,77.7270],["Nallurhalli",12.9765,77.7245],["Kundalahalli",12.9775,77.7160],["Seetharampalya",12.9840,77.7130],["Hoodi",12.9895,77.7075],
+    ["Garudacharapalya",12.9935,77.7000],["Singayyanapalya",12.9965,77.6925],["KR Puram",13.0006,77.6754],["Benniganahalli",12.9910,77.6630],["Baiyappanahalli",12.9907,77.6526],
+    ["Swami Vivekananda Road",12.9858,77.6448],["Indiranagar",12.9783,77.6385],["Halasuru",12.9760,77.6266],["Trinity",12.9730,77.6170],["MG Road",12.9755,77.6067],
+    ["Cubbon Park",12.9810,77.5970],["Vidhana Soudha",12.9797,77.5927],["Sir M. Visvesvaraya",12.9745,77.5843],["Majestic",12.9757,77.5728],["City Railway Station",12.9758,77.5660],
+    ["Magadi Road",12.9756,77.5554],["Hosahalli",12.9742,77.5455],["Vijayanagar",12.9710,77.5372],["Attiguppe",12.9618,77.5335],["Deepanjali Nagar",12.9520,77.5375],
+    ["Mysore Road",12.9467,77.5300],["Nayandahalli",12.9418,77.5251],["Rajarajeshwari Nagar",12.9365,77.5195],["Jnanabharathi",12.9350,77.5120],["Pattanagere",12.9244,77.4983],
+    ["Kengeri Bus Terminal",12.9149,77.4874],["Kengeri",12.9078,77.4767],["Challaghatta",12.8980,77.4610]] },
+  { id: "green", name: "Green Line", color: "var(--m-green)", run: 2.0, headway: [3.5, 6], stations: [
+    ["Madavara",13.0570,77.4730],["Chikkabidarakallu",13.0525,77.4880],["Manjunathanagar",13.0500,77.4945],["Nagasandra",13.0480,77.5000],["Dasarahalli",13.0440,77.5125],
+    ["Jalahalli",13.0395,77.5195],["Peenya Industry",13.0365,77.5255],["Peenya",13.0330,77.5335],["Goraguntepalya",13.0285,77.5410],["Yeshwanthpur",13.0235,77.5500],
+    ["Sandal Soap Factory",13.0145,77.5540],["Mahalakshmi",13.0083,77.5487],["Rajajinagar",13.0005,77.5495],["Kuvempu Road",12.9985,77.5570],["Srirampura",12.9965,77.5630],
+    ["Mantri Square Sampige Road",12.9905,77.5705],["Majestic",12.9757,77.5728],["Chickpete",12.9668,77.5748],["KR Market",12.9605,77.5745],["National College",12.9505,77.5737],
+    ["Lalbagh",12.9465,77.5800],["South End Circle",12.9385,77.5800],["Jayanagar",12.9295,77.5800],["RV Road",12.9215,77.5800],["Banashankari",12.9150,77.5735],
+    ["JP Nagar",12.9075,77.5730],["Yelachenahalli",12.8960,77.5700],["Konanakunte Cross",12.8885,77.5625],["Doddakallasandra",12.8845,77.5530],["Vajarahalli",12.8770,77.5450],
+    ["Thalaghattapura",12.8710,77.5385],["Silk Institute",12.8615,77.5300]] },
+  { id: "yellow", name: "Yellow Line", color: "var(--m-yellow)", run: 2.3, headway: [8, 10], stations: [
+    ["RV Road",12.9215,77.5800],["Ragigudda",12.9165,77.5895],["Jayadeva Hospital",12.9180,77.5995],["BTM Layout",12.9155,77.6105],["Central Silk Board",12.9175,77.6235],
+    ["Bommanahalli",12.9070,77.6240],["Hongasandra",12.8985,77.6255],["Kudlu Gate",12.8925,77.6290],["Singasandra",12.8840,77.6390],["Hosa Road",12.8780,77.6460],
+    ["Beratena Agrahara",12.8670,77.6530],["Electronic City",12.8520,77.6630],["Konappana Agrahara",12.8460,77.6690],["Huskur Road",12.8380,77.6750],["Hebbagodi",12.8300,77.6800],
+    ["Bommasandra",12.8170,77.6900]] },
+];
 
-const NODES = RAW_NODES.map(([id,name,lat,lon,area,major]) => ({id,name,lat,lon,area,major:!!major}));
-const IDX = Object.fromEntries(NODES.map((n,i) => [n.id, i]));
-const R = Math.PI / 180;
+/* ============================================================
+   Geometry and graph
+   ============================================================ */
+const RAD = Math.PI / 180;
 function km(a, b) {
-  const dLat = (b.lat - a.lat) * R, dLon = (b.lon - a.lon) * R;
-  const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*R) * Math.cos(b.lat*R) * Math.sin(dLon/2)**2;
+  const dLat = (b.lat - a.lat) * RAD, dLon = (b.lon - a.lon) * RAD;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * RAD) * Math.cos(b.lat * RAD) * Math.sin(dLon / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(s));
 }
+const NODES = RAW_NODES.map(([id, name, lat, lon, area, major]) => ({ id, name, lat, lon, area, major: !!major }));
+const IDX = Object.fromEntries(NODES.map((n, i) => [n.id, i]));
 const DETOUR = { xway: 1.12, arterial: 1.2, main: 1.25, city: 1.3 };
 const SPEED = { car: { xway: 70, arterial: 42, main: 33, city: 25 }, bike: { xway: 60, arterial: 42, main: 36, city: 29 } };
 const CONG = { car: 1.55, bike: 0.9 };
-const HUBS = ["mgroad","bellandur","itpl","ecity","manyata"].map(id => NODES[IDX[id]]);
+const HUBS = ["mgroad", "bellandur", "itpl", "ecity", "manyata"].map(id => NODES[IDX[id]]);
 const hubDist = n => Math.min(...HUBS.map(h => km(n, h)));
-function tidal(from, to) { const d = hubDist(to) - hubDist(from); return d < -0.3 ? 1 : d > 0.3 ? -1 : 0; }
+// +1 when a direction heads toward a job hub (heavier in the morning), -1 when it heads away.
+const tidal = (from, to) => { const d = hubDist(to) - hubDist(from); return d < -0.3 ? 1 : d > 0.3 ? -1 : 0; };
 
-const EDGES = RAW_EDGES.map(([a,b,cls,h,road,flags=""]) => {
+const EDGES = RAW_EDGES.map(([a, b, cls, h, road, flags = ""]) => {
   const A = NODES[IDX[a]], B = NODES[IDX[b]];
-  if (!A || !B) throw new Error("Unknown node in edge " + a + "-" + b);
-  return { a: IDX[a], b: IDX[b], cls, h, road, toll: flags.includes("t"), flood: flags.includes("f"),
-    len: km(A, B) * DETOUR[cls], tidal: [tidal(A, B), tidal(B, A)] };
+  if (!A || !B) throw new Error(`Unknown junction in edge ${a}-${b}`);
+  return { a: IDX[a], b: IDX[b], cls, h, road, toll: flags.includes("t"), flood: flags.includes("f"), len: km(A, B) * DETOUR[cls], tidal: [tidal(A, B), tidal(B, A)] };
 });
 const ADJ = NODES.map(() => []);
 EDGES.forEach((e, i) => { ADJ[e.a].push({ e: i, to: e.b, dir: 0 }); ADJ[e.b].push({ e: i, to: e.a, dir: 1 }); });
 
-// ---------- Traffic model ----------
-const g = (x, mu, s) => Math.exp(-((x - mu) ** 2) / (2 * s * s));
+/* ============================================================
+   Traffic model
+   ============================================================ */
+const gauss = (x, mu, s) => Math.exp(-((x - mu) ** 2) / (2 * s * s));
 const sig = x => 1 / (1 + Math.exp(-x));
-// day: 0 = Mon ... 6 = Sun
+const isPeak = (h, day) => day < 5 && ((h >= 8 && h < 11) || (h >= 17 && h < 20.5));
+// Congestion level for hour h on day (0 = Mon). Roughly 0 at night, about 1 at the worst peak.
 function level(h, day, tid) {
-  const act = sig((h - 6.8) * 2.2) * sig(-(h - 22.5) * 1.8);
-  if (day >= 5) return 0.36 * act + 0.28 * g(h, 11.2, 1.6) + 0.62 * g(h, 18.3, 2.1);
-  const amAmp = day === 0 ? 1.12 : 1.0;
-  const pmAmp = day === 4 ? 1.18 : 1.05, pmMu = day === 4 ? 19.1 : 18.9, pmS = day === 4 ? 1.6 : 1.45;
-  const fa = tid > 0 ? 1 : tid < 0 ? 0.5 : 0.75;
-  const fp = tid > 0 ? 0.5 : tid < 0 ? 1 : 0.75;
-  return 0.3 * act + amAmp * g(h, 9.6, 1.05) * fa + pmAmp * g(h, pmMu, pmS) * fp;
+  const active = sig((h - 6.8) * 2.2) * sig(-(h - 22.5) * 1.8);
+  if (day >= 5) return 0.36 * active + 0.28 * gauss(h, 11.2, 1.6) + 0.62 * gauss(h, 18.3, 2.1);
+  const am = (day === 0 ? 1.12 : 1) * gauss(h, 9.6, 1.05);
+  const pm = (day === 4 ? 1.18 : 1.05) * gauss(h, day === 4 ? 19.1 : 18.9, day === 4 ? 1.6 : 1.45);
+  const fa = tid > 0 ? 1 : tid < 0 ? 0.5 : 0.75, fp = tid > 0 ? 0.5 : tid < 0 ? 1 : 0.75;
+  return 0.3 * active + am * fa + pm * fp;
 }
+const clockParts = (tMin, day) => ({ h: (((tMin % 1440) + 1440) % 1440) / 60, day: (day + Math.floor(tMin / 1440)) % 7 });
 function edgeMult(E, dir, tMin, o) {
-  const day = (o.day + Math.floor(tMin / 1440)) % 7;
-  const h = ((tMin % 1440) + 1440) % 1440 / 60;
+  const { h, day } = clockParts(tMin, o.day);
   const lv = level(h, day, E.tidal[dir]);
   let m = 1 + CONG[o.vehicle] * E.h * lv * (o.rain ? 1.3 : 1);
   if (o.rain) { m *= 1.12; if (E.flood) m *= 1.15 + 0.5 * lv; }
   return m;
 }
-const edgeTime = (E, dir, tMin, o) => E.len / SPEED[o.vehicle][E.cls] * 60 * edgeMult(E, dir, tMin, o);
+const freeTime = (E, o) => E.len / SPEED[o.vehicle][E.cls] * 60;
+const edgeTime = (E, dir, tMin, o) => freeTime(E, o) * edgeMult(E, dir, tMin, o);
 
-// Time-dependent Dijkstra (labels are clock minutes). metric "dist" ignores time.
-function route(src, dst, t0, o, metric = "time", penalty = null) {
+/* ============================================================
+   Road routing (time-dependent Dijkstra; labels are clock minutes)
+   ============================================================ */
+function route(src, dst, t0, o, { metric = "time", penalty = null } = {}) {
   if (src === dst) return [];
   const n = NODES.length, best = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), pdir = new Int8Array(n), done = new Uint8Array(n);
   best[src] = metric === "time" ? t0 : 0;
-  for (let k = 0; k < n; k++) {
+  for (;;) {
     let u = -1, bv = Infinity;
     for (let i = 0; i < n; i++) if (!done[i] && best[i] < bv) { bv = best[i]; u = i; }
-    if (u < 0) break;
+    if (u < 0 || u === dst) break;
     done[u] = 1;
-    if (u === dst) break;
     for (const { e, to, dir } of ADJ[u]) {
-      if (done[to]) continue;
       const E = EDGES[e];
-      if (o.avoidTolls && E.toll) continue;
+      if (done[to] || (o.avoidTolls && E.toll)) continue;
       let c = metric === "time" ? edgeTime(E, dir, best[u], o) : E.len;
       if (penalty && penalty.has(e)) c *= 1.6;
       if (best[u] + c < best[to]) { best[to] = best[u] + c; prev[to] = e; pdir[to] = dir; }
@@ -545,98 +579,191 @@ function route(src, dst, t0, o, metric = "time", penalty = null) {
   }
   if (best[dst] === Infinity) return null;
   const steps = [];
-  for (let v = dst; v !== src; ) { const e = prev[v], dir = pdir[v], E = EDGES[e], from = dir === 0 ? E.a : E.b; steps.push({ e, dir, from, to: v }); v = from; }
+  for (let v = dst; v !== src;) { const E = EDGES[prev[v]], from = pdir[v] === 0 ? E.a : E.b; steps.push({ e: prev[v], dir: pdir[v], from, to: v }); v = from; }
   return steps.reverse();
 }
 function evalPath(steps, t0, o) {
-  let t = t0, dist = 0;
-  const out = steps.map(s => { const E = EDGES[s.e], tt = edgeTime(E, s.dir, t, o), r = { ...s, t0: t, t1: t + tt, km: E.len, mult: edgeMult(E, s.dir, t, o) }; t += tt; dist += E.len; return r; });
-  return { steps: out, depart: t0, arrive: t, minutes: t - t0, km: dist };
+  let t = t0, dist = 0, free = 0;
+  const out = steps.map(s => {
+    const E = EDGES[s.e], mult = edgeMult(E, s.dir, t, o), ft = freeTime(E, o), tt = ft * mult;
+    const r = { ...s, t0: t, t1: t + tt, km: E.len, mult, free: ft };
+    t += tt; dist += E.len; free += ft;
+    return r;
+  });
+  return { kind: "road", steps: out, depart: t0, arrive: t, minutes: t - t0, km: dist, free };
 }
+const samePath = (a, b) => a.length === b.length && a.every((s, i) => s.e === b[i].e);
 
-let cache = new Map(), cacheKey = "";
-function fastest(a, b, t, o) {
-  const key = a + "|" + b + "|" + Math.round(t / 3);
-  let r = cache.get(key);
-  if (!r) { const st = route(a, b, t, o); r = st ? evalPath(st, t, o) : null; cache.set(key, r); }
-  return r && r.depart === t ? r : (r ? evalPath(r.steps, t, o) : null);
+/* ============================================================
+   Trip planner (stops, ordering, caching)
+   ============================================================ */
+const opts = st => ({ vehicle: st.vehicle, avoidTolls: st.tolls, rain: st.rain, day: st.day });
+const optsKey = o => [o.vehicle, o.avoidTolls, o.rain, o.day].join();
+const routeCache = new Map();
+// Fastest leg a->b leaving at t. Paths are cached per 5-minute bucket and re-timed exactly.
+function leg(a, b, t, o) {
+  const key = `${optsKey(o)}|${a}|${b}|${Math.round(t / 5)}`;
+  if (!routeCache.has(key)) { if (routeCache.size > 60000) routeCache.clear(); routeCache.set(key, route(a, b, t, o)); }
+  const steps = routeCache.get(key);
+  return steps ? evalPath(steps, t, o) : null;
 }
-function permutations(arr) {
-  if (arr.length <= 1) return [arr.slice()];
-  const out = [];
-  arr.forEach((x, i) => { for (const p of permutations([...arr.slice(0, i), ...arr.slice(i + 1)])) out.push([x, ...p]); });
-  return out;
-}
-function runOrder(seq, t0, o, dwell) {
-  let t = t0, km = 0; const legs = [];
+function runOrder(seq, t0, o, dwell, bound = Infinity) {
+  let t = t0, dist = 0, free = 0;
+  const legs = [];
   for (let i = 0; i < seq.length - 1; i++) {
-    const r = fastest(seq[i], seq[i + 1], t, o);
+    const r = leg(seq[i], seq[i + 1], t, o);
     if (!r) return null;
-    legs.push(r); km += r.km; t = r.arrive;
+    legs.push(r); dist += r.km; free += r.free; t = r.arrive;
     if (i < seq.length - 2) t += dwell;
+    if (t - t0 > bound) return null; // pruned: already slower than the best order
   }
-  return { legs, arrive: t, minutes: t - t0, km };
+  return { kind: "road", legs, depart: t0, arrive: t, minutes: t - t0, km: dist, free };
+}
+function* permutations(arr) {
+  if (arr.length <= 1) { yield arr.slice(); return; }
+  for (let i = 0; i < arr.length; i++) for (const p of permutations([...arr.slice(0, i), ...arr.slice(i + 1)])) yield [arr[i], ...p];
 }
 function plan(st, t0, fixedOrder = null) {
-  const o = opts(st);
-  const key = JSON.stringify([o.vehicle, o.avoidTolls, o.rain, o.day]);
-  if (key !== cacheKey) { cache = new Map(); cacheKey = key; }
-  const stops = st.stops.map(id => IDX[id]);
-  const from = IDX[st.from], to = IDX[st.to];
-  const asEntered = runOrder([from, ...stops, to], t0, o, st.dwell);
-  if (fixedOrder) return { ...runOrder([from, ...fixedOrder, to], t0, o, st.dwell), order: fixedOrder, asEntered };
-  let best = asEntered ? { ...asEntered, order: stops } : null;
-  if (st.optimise && stops.length >= 2) {
-    for (const p of permutations(stops)) {
-      const r = runOrder([from, ...p, to], t0, o, st.dwell);
+  const o = opts(st), from = IDX[st.from], to = IDX[st.to];
+  const entered = st.stops.map(id => IDX[id]);
+  const trip = order => { const r = runOrder([from, ...order, to], t0, o, st.dwell); return r && { ...r, order }; };
+  if (fixedOrder) return trip(fixedOrder);
+  const asEntered = trip(entered);
+  let best = asEntered;
+  if (st.optimise && entered.length >= 2) {
+    for (const p of permutations(entered)) {
+      const r = runOrder([from, ...p, to], t0, o, st.dwell, best ? best.minutes : Infinity);
       if (r && (!best || r.minutes < best.minutes - 0.01)) best = { ...r, order: p };
     }
   }
-  return best ? { ...best, asEntered } : null;
+  return best && { ...best, asEntered };
 }
-const opts = st => ({ vehicle: st.vehicle, avoidTolls: st.tolls, rain: st.rain, day: st.day });
 
-// ---------- State ----------
-const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+/* ============================================================
+   Namma Metro: station graph, first/last mile, door-to-door trip
+   ============================================================ */
+const ST = [];
+METRO.forEach(L => L.stations.forEach(([name, lat, lon], i) => ST.push({ name, lat, lon, line: L, i })));
+const ST_BY_NAME = new Map();
+ST.forEach((s, k) => { if (!ST_BY_NAME.has(s.name)) ST_BY_NAME.set(s.name, []); ST_BY_NAME.get(s.name).push(k); });
+const ST_INDEX = new Map(ST.map((s, k) => [`${s.line.id}:${s.i}`, k]));
+const STATIONS = [...ST_BY_NAME.keys()].map(name => { const s = ST[ST_BY_NAME.get(name)[0]]; return { name, lat: s.lat, lon: s.lon, lines: ST_BY_NAME.get(name).map(k => ST[k].line) }; });
+const METRO_OPEN = 5 * 60, METRO_CLOSE = 23 * 60;
+const TRANSFER_WALK = 4;
+const wait = (L, tMin, day) => { const { h, day: d } = clockParts(tMin, day); return (isPeak(h, d) ? L.headway[0] : L.headway[1]) / 2; };
+// Fewest-minutes ride between two station names, boarding at clock time t.
+function metroRide(fromName, toName, t, day) {
+  const n = ST.length, best = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n);
+  ST_BY_NAME.get(fromName).forEach(k => { best[k] = wait(ST[k].line, t, day); });
+  const goal = new Set(ST_BY_NAME.get(toName));
+  let hit = -1;
+  for (;;) {
+    let u = -1, bv = Infinity;
+    for (let i = 0; i < n; i++) if (!done[i] && best[i] < bv) { bv = best[i]; u = i; }
+    if (u < 0) break;
+    if (goal.has(u)) { hit = u; break; }
+    done[u] = 1;
+    const s = ST[u], nb = [];
+    for (const di of [-1, 1]) { const k = ST_INDEX.get(`${s.line.id}:${s.i + di}`); if (k !== undefined) nb.push([k, s.line.run]); }
+    ST_BY_NAME.get(s.name).forEach(k => { if (k !== u) nb.push([k, TRANSFER_WALK + wait(ST[k].line, t + best[u], day)]); });
+    for (const [k, c] of nb) if (!done[k] && best[u] + c < best[k]) { best[k] = best[u] + c; prev[k] = u; }
+  }
+  if (hit < 0) return null;
+  const path = [];
+  for (let v = hit; v >= 0; v = prev[v]) path.unshift(v);
+  // Split into rides on one line each.
+  const rides = [];
+  path.forEach(k => { const last = rides[rides.length - 1]; if (last && last.line === ST[k].line) last.path.push(k); else rides.push({ line: ST[k].line, path: [k] }); });
+  const riding = rides.filter(r => r.path.length > 1);
+  return { minutes: best[hit], rides: riding };
+}
+// Walk if close, otherwise an auto (or your two-wheeler) through traffic.
+function access(place, station, tMin, o) {
+  const d = km(place, station);
+  if (d <= 1.3) return { mode: "walk", km: d, minutes: d * 1.25 / 4.6 * 60 + 1 };
+  const { h, day } = clockParts(tMin, o.day);
+  const slow = 1 + CONG[o.vehicle] * 0.55 * level(h, day, 0) * (o.rain ? 1.35 : 1);
+  const ride = d * 1.3 / SPEED[o.vehicle].city * 60 * slow;
+  return { mode: o.vehicle === "bike" ? "bike" : "auto", km: d, minutes: ride + (o.vehicle === "bike" ? 3 : 4) };
+}
+const nearestStations = (place, k = 3, maxKm = 6.5) => STATIONS.map(s => ({ s, d: km(place, s) })).filter(x => x.d <= maxKm).sort((a, b) => a.d - b.d).slice(0, k).map(x => x.s);
+function metroTrip(fromId, toId, t0, o) {
+  const A = NODES[IDX[fromId]], B = NODES[IDX[toId]];
+  if (A === B) return null;
+  let best = null;
+  for (const sa of nearestStations(A)) for (const sb of nearestStations(B)) {
+    if (sa.name === sb.name) continue;
+    const first = access(A, sa, t0, o);
+    const board = t0 + first.minutes;
+    if (board < METRO_OPEN || board > METRO_CLOSE) continue;
+    const ride = metroRide(sa.name, sb.name, board, o.day);
+    if (!ride) continue;
+    const last = access(sb, B, board + ride.minutes, o);
+    const minutes = first.minutes + ride.minutes + last.minutes;
+    if (!best || minutes < best.minutes) best = { kind: "metro", from: A, to: B, sa, sb, first, ride, last, depart: t0, minutes, arrive: t0 + minutes, km: first.km + last.km + rideKm(ride) };
+  }
+  return best;
+}
+const rideKm = ride => ride.rides.reduce((s, r) => s + r.path.slice(1).reduce((a, k, i) => a + km(ST[r.path[i]], ST[k]), 0), 0);
+
+/* ============================================================
+   State
+   ============================================================ */
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DEFAULT = { from: "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from" };
+const STORE = "namma-route";
 let state = { ...DEFAULT };
-try { const s = JSON.parse(localStorage.getItem("namma-route") || "null"); if (s && IDX[s.from] !== undefined && IDX[s.to] !== undefined) state = { ...DEFAULT, ...s, stops: (s.stops || []).filter(id => IDX[id] !== undefined) }; } catch (e) {}
-const save = () => { try { localStorage.setItem("namma-route", JSON.stringify(state)); } catch (e) {} };
-let chosen = "fast"; // fast | short | alt
-let autoFit = true;
+try {
+  const s = JSON.parse(localStorage.getItem(STORE) || "null");
+  if (s && IDX[s.from] !== undefined && IDX[s.to] !== undefined) state = { ...DEFAULT, ...s, stops: (s.stops || []).filter(id => IDX[id] !== undefined) };
+} catch (e) { /* storage unavailable: start fresh */ }
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* ignore */ } };
+let chosen = "fast";      // fast | alt | short | metro
+let autoFit = true;       // refit the map to the next route
+let current = null;       // results of the last compute()
+let lastSig = "", animateRoute = true;
 
-// ---------- Helpers ----------
+/* ============================================================
+   Formatting helpers
+   ============================================================ */
 const pad = n => String(n).padStart(2, "0");
-const clock = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return pad(Math.floor(m / 60)) + ":" + pad(m % 60); };
-const dur = m => { m = Math.round(m); return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min" : ""); };
+const clock = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
+const dur = m => { m = Math.round(m); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`; };
+const etaHTML = m => { m = Math.round(m); return m < 60 ? `${m}<small> min</small>` : `${Math.floor(m / 60)}<small> h</small>${m % 60 ? ` ${m % 60}<small> min</small>` : ""}`; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-function band(m) { return m < 1.35 ? ["good","Light"] : m < 1.9 ? ["warn","Moderate"] : m < 2.5 ? ["bad","Heavy"] : ["worst","Jammed"]; }
+const band = m => m < 1.35 ? ["good", "Light"] : m < 1.9 ? ["warn", "Moderate"] : m < 2.5 ? ["bad", "Heavy"] : ["worst", "Jammed"];
+const ratioBand = r => r < 1.15 ? "good" : r < 1.5 ? "warn" : r < 2 ? "bad" : "worst";
+const COLOR = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", worst: "var(--worst)" };
 const nm = i => NODES[i].name;
-
-// ---------- Controls ----------
-const AREAS = ["Central","East","South","North","West"];
-const optionsHTML = AREAS.map(a => `<optgroup label="${a}">` + NODES.filter(n => n.area === a).sort((x, y) => x.name.localeCompare(y.name)).map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join("") + `</optgroup>`).join("");
+const shortName = s => s.replace(/ \((?!ITPL|KIA|Forum|Sony World).*\)$/, "").replace("Kempegowda Airport (KIA)", "Airport (KIA)");
 const $ = s => document.querySelector(s);
-$("#from").innerHTML = optionsHTML; $("#to").innerHTML = optionsHTML;
+
+/* ============================================================
+   Controls
+   ============================================================ */
+const AREAS = ["Central", "East", "South", "North", "West"];
+const OPTIONS = AREAS.map(a => `<optgroup label="${a}">${NODES.filter(n => n.area === a).sort((x, y) => x.name.localeCompare(y.name)).map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join("")}</optgroup>`).join("");
+$("#from").innerHTML = OPTIONS; $("#to").innerHTML = OPTIONS;
 $("#days").innerHTML = DAYS.map((d, i) => `<label><input type="radio" name="day" value="${i}"><span>${d}</span></label>`).join("");
 
 function syncControls() {
   $("#from").value = state.from; $("#to").value = state.to;
   $("#slot").value = state.slot; $("#clock").textContent = clock(state.slot * 15);
-  document.querySelectorAll('input[name="day"]').forEach(r => r.checked = +r.value === state.day);
-  document.querySelectorAll('input[name="veh"]').forEach(r => r.checked = r.value === state.vehicle);
-  document.querySelectorAll('input[name="tap"]').forEach(r => r.checked = r.value === state.tap);
+  document.querySelectorAll('input[name="day"]').forEach(r => { r.checked = +r.value === state.day; });
+  document.querySelectorAll('input[name="veh"]').forEach(r => { r.checked = r.value === state.vehicle; });
+  document.querySelectorAll('input[name="tap"]').forEach(r => { r.checked = r.value === state.tap; });
   $("#tolls").checked = state.tolls; $("#rain").checked = state.rain; $("#optimise").checked = state.optimise; $("#dwell").value = state.dwell;
-  $("#stops").innerHTML = state.stops.map((id, i) => `<div class="field"><span class="pin stop" aria-hidden="true">${i + 1}</span><select data-stop="${i}" id="stop-${i}" aria-label="Stop ${i + 1}">${optionsHTML}</select><button class="icon-btn" data-remove="${i}" aria-label="Remove stop ${i + 1}">×</button></div>`).join("");
+  $("#stops").innerHTML = state.stops.map((id, i) => `<div class="field"><span class="pin stop" aria-hidden="true">${i + 1}</span><select data-stop="${i}" id="stop-${i}" aria-label="Stop ${i + 1}">${OPTIONS}</select><button class="icon-btn" type="button" data-remove="${i}" aria-label="Remove stop ${i + 1}">×</button></div>`).join("");
   state.stops.forEach((id, i) => { $(`#stop-${i}`).value = id; });
-  $("#addStop").disabled = state.stops.length >= 6;
-  $("#addStop").textContent = state.stops.length >= 6 ? "Up to 6 stops" : "+ Add a stop on the way";
+  const full = state.stops.length >= 6;
+  $("#addStop").disabled = full;
+  $("#addStop").textContent = full ? "Up to 6 stops" : "+ Add a stop on the way";
   $("#stopOpts").hidden = state.stops.length < 1;
 }
-function update(patch, opts = {}) {
+function update(patch, { refit = true, keepChoice = false } = {}) {
   Object.assign(state, patch);
-  if (opts.refit !== false) autoFit = true;
-  if (!opts.keepChoice) chosen = "fast";
+  if (refit) autoFit = true;
+  if (!keepChoice) chosen = "fast";
   save(); syncControls(); compute();
 }
 $("#from").addEventListener("change", e => update({ from: e.target.value }));
@@ -644,241 +771,265 @@ $("#to").addEventListener("change", e => update({ to: e.target.value }));
 $("#swap").addEventListener("click", () => update({ from: state.to, to: state.from, stops: state.stops.slice().reverse() }));
 $("#addStop").addEventListener("click", () => {
   const used = new Set([state.from, state.to, ...state.stops]);
-  const pick = ["mgroad","indiranagar","sonyworld","jayanagar","malleshwaram","marathahalli","hebbal","yeshwanthpur"].find(id => !used.has(id)) || "mgroad";
+  const pick = ["mgroad", "indiranagar", "sonyworld", "jayanagar", "malleshwaram", "marathahalli", "hebbal", "yeshwanthpur"].find(id => !used.has(id)) || "mgroad";
   update({ stops: [...state.stops, pick] });
 });
 $("#stops").addEventListener("change", e => { const i = e.target.dataset.stop; if (i !== undefined) { const s = state.stops.slice(); s[+i] = e.target.value; update({ stops: s }); } });
 $("#stops").addEventListener("click", e => { const b = e.target.closest("[data-remove]"); if (b) { const s = state.stops.slice(); s.splice(+b.dataset.remove, 1); update({ stops: s }); } });
 $("#optimise").addEventListener("change", e => update({ optimise: e.target.checked }));
 $("#dwell").addEventListener("change", e => update({ dwell: Math.max(0, Math.min(240, +e.target.value || 0)) }, { refit: false }));
-$("#days").addEventListener("change", e => update({ day: +e.target.value }, { refit: false }));
-$("#slot").addEventListener("input", e => { state.slot = +e.target.value; $("#clock").textContent = clock(state.slot * 15); save(); autoFit = false; compute(); });
-document.querySelectorAll('input[name="veh"]').forEach(r => r.addEventListener("change", () => update({ vehicle: r.value }, { refit: false })));
+$("#days").addEventListener("change", e => update({ day: +e.target.value }, { refit: false, keepChoice: true }));
+$("#slot").addEventListener("input", e => { state.slot = +e.target.value; $("#clock").textContent = clock(state.slot * 15); save(); compute(); });
+document.querySelectorAll('input[name="veh"]').forEach(r => r.addEventListener("change", () => update({ vehicle: r.value }, { refit: false, keepChoice: true })));
 document.querySelectorAll('input[name="tap"]').forEach(r => r.addEventListener("change", () => { state.tap = r.value; save(); }));
 $("#tolls").addEventListener("change", e => update({ tolls: e.target.checked }));
-$("#rain").addEventListener("change", e => update({ rain: e.target.checked }, { refit: false }));
+$("#rain").addEventListener("change", e => update({ rain: e.target.checked }, { refit: false, keepChoice: true }));
 $("#now").addEventListener("click", () => {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map(p => [p.type, p.value]));
-  const day = Math.max(0, DAYS.indexOf(parts.weekday));
-  const slot = Math.min(95, Math.round((+parts.hour * 60 + +parts.minute) / 15));
-  update({ day, slot }, { refit: false });
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  update({ day: Math.max(0, DAYS.indexOf(p.weekday)), slot: Math.min(95, Math.round((+p.hour * 60 + +p.minute) / 15)) }, { refit: false, keepChoice: true });
 });
 
-// ---------- Compute & render ----------
-let current = null;
-let animateRoute = true, lastSig = "";
+/* ============================================================
+   Compute
+   ============================================================ */
+const seriesCache = new Map();
+function tripKey() { return JSON.stringify([state.from, state.to, state.stops, state.vehicle, state.tolls, state.rain, state.optimise, state.dwell]); }
+// Road trip time (and metro alternative) for each 15-minute slot of a day, keeping the stop order fixed.
+function daySeries(day, order, withMetro = true) {
+  const key = `${tripKey()}|${day}|${order.join()}|${withMetro}`;
+  if (seriesCache.has(key)) return seriesCache.get(key);
+  const st = { ...state, day }, o = opts(st), noStops = withMetro && !state.stops.length;
+  const road = [], metro = [];
+  for (let s = 0; s < 96; s++) {
+    const r = plan(st, s * 15, order);
+    road.push(r ? r.minutes : null);
+    const m = noStops ? metroTrip(state.from, state.to, s * 15, o) : null;
+    metro.push(m ? m.minutes : null);
+  }
+  const out = { road, metro };
+  if (seriesCache.size > 200) seriesCache.clear();
+  seriesCache.set(key, out);
+  return out;
+}
 function compute() {
-  const t0 = state.slot * 15;
+  const t0 = state.slot * 15, o = opts(state);
   const main = plan(state, t0);
-  const o = opts(state);
-  let short = null, alt = null, free = null;
-  if (main && state.stops.length === 0 && state.from !== state.to) {
-    const sd = route(IDX[state.from], IDX[state.to], t0, o, "dist");
-    if (sd) short = evalPath(sd, t0, o);
-    const fastSteps = main.legs[0].steps;
-    const pen = new Set(fastSteps.map(s => s.e));
-    const as = route(IDX[state.from], IDX[state.to], t0, o, "time", pen);
-    if (as) {
-      const a = evalPath(as, t0, o);
-      const same = a.steps.length === fastSteps.length && a.steps.every((s, i) => s.e === fastSteps[i].e);
-      if (!same && a.minutes < main.minutes * 1.45) alt = a;
-    }
-    if (short && short.steps.map(s => s.e).join() === fastSteps.map(s => s.e).join()) short = null;
+  let short = null, alt = null, metro = null;
+  if (main && !state.stops.length && state.from !== state.to) {
+    const a = IDX[state.from], b = IDX[state.to], fastSteps = main.legs[0].steps;
+    const sd = route(a, b, t0, o, { metric: "dist" });
+    if (sd && !samePath(sd, fastSteps)) short = evalPath(sd, t0, o);
+    const as = route(a, b, t0, o, { penalty: new Set(fastSteps.map(s => s.e)) });
+    if (as && !samePath(as, fastSteps)) { const r = evalPath(as, t0, o); if (r.minutes < main.minutes * 1.45) alt = r; }
+    metro = metroTrip(state.from, state.to, t0, o);
   }
-  if (main) {
-    const night = { ...o, day: o.day, rain: false };
-    free = main.legs.reduce((sum, l) => sum + evalPath(l.steps, 180, night).minutes, 0) + state.dwell * main.order.length;
-  }
-  // departure-time series, keeping the stop order fixed
-  const series = [];
-  if (main) for (let s = 0; s < 96; s++) {
-    const r = state.stops.length ? plan(state, s * 15, main.order) : (() => { const st = route(IDX[state.from], IDX[state.to], s * 15, o); return st ? evalPath(st, s * 15, o) : null; })();
-    series.push(r ? r.minutes : null);
-  }
-  current = { main, short, alt, free, series, t0 };
+  if (chosen === "metro" && !metro || chosen === "alt" && !alt || chosen === "short" && !short) chosen = "fast";
+  const series = main ? daySeries(state.day, main.order) : { road: [], metro: [] };
+  current = { main, short, alt, metro, series, t0 };
   const d = displayed();
-  const sig = d ? d.legs.map(l => l.steps.map(x => x.e).join(",")).join("|") : "";
+  const sig = d ? (d.kind === "metro" ? `m:${d.sa.name}:${d.sb.name}` : d.legs.map(l => l.steps.map(x => x.e).join(",")).join("|")) : "";
   animateRoute = sig !== lastSig; lastSig = sig;
   render();
 }
 function displayed() {
   const c = current;
-  if (!c.main) return null;
-  if (chosen === "short" && c.short) return { legs: [c.short], minutes: c.short.minutes, km: c.short.km, arrive: c.short.arrive };
-  if (chosen === "alt" && c.alt) return { legs: [c.alt], minutes: c.alt.minutes, km: c.alt.km, arrive: c.alt.arrive };
+  if (!c || !c.main) return null;
+  if (chosen === "metro" && c.metro) return c.metro;
+  const one = r => ({ ...r, legs: [r], order: [] });
+  if (chosen === "short" && c.short) return one(c.short);
+  if (chosen === "alt" && c.alt) return one(c.alt);
   return c.main;
 }
-function render() { renderSummary(); renderMap(); renderChart(); renderSteps(); }
+function render() { renderSummary(); renderMap(); renderChart(); renderSteps(); renderWeek(); }
 
-function gmapsURL(d) {
-  const ll = i => NODES[i].lat.toFixed(5) + "," + NODES[i].lon.toFixed(5);
-  const p = new URLSearchParams({ api: "1", origin: ll(IDX[state.from]), destination: ll(IDX[state.to]), travelmode: "driving" });
-  if (current.main.order.length) p.set("waypoints", current.main.order.map(ll).join("|"));
-  if (state.tolls) p.set("avoid", "tolls");
-  return "https://www.google.com/maps/dir/?" + p.toString();
-}
+/* ============================================================
+   Summary
+   ============================================================ */
 function bestInWindow() {
-  const s = current.series, i0 = state.slot;
+  const s = current.series.road, i0 = state.slot;
   let bi = i0;
   for (let i = Math.max(0, i0 - 8); i <= Math.min(95, i0 + 8); i++) if (s[i] != null && s[i] < s[bi] - 0.5) bi = i;
   return bi;
-}
-function renderSummary() {
-  const el = $("#summary"), c = current;
-  if (!c.main) { el.innerHTML = `<div class="empty">No route found with these settings. Try allowing tolls.</div>`; return; }
-  const d = displayed();
-  const avg = d.minutes > 0 ? d.km / (d.minutes / 60) : 0;
-  const overall = d.legs.flatMap(l => l.steps);
-  const w = overall.reduce((s, x) => s + x.km, 0) || 1;
-  const m = overall.reduce((s, x) => s + x.mult * x.km, 0) / w || 1;
-  const [bcls, blabel] = band(m);
-  const delay = Math.max(0, c.main.minutes - c.free);
-  const bi = bestInWindow(), save = c.series[state.slot] - c.series[bi];
-  const tripName = [state.from, ...c.main.order.map(i => NODES[i].id), state.to].map(id => esc(NODES[IDX[id]].name)).join(" → ");
-  let callout;
-  if (bi !== state.slot && save >= 3) {
-    const when = bi < state.slot ? "Leave earlier" : "Wait a little";
-    callout = `<div class="callout"><div class="big">${clock(bi * 15)}</div><p><b>${when}:</b> leaving at ${clock(bi * 15)} takes ${dur(c.series[bi])}, saving about ${dur(save)} compared with ${clock(state.slot * 15)}.</p><button class="pill-btn" id="useBest">Use ${clock(bi * 15)}</button></div>`;
-  } else {
-    callout = `<div class="callout"><div class="big">✓</div><p>${clock(state.slot * 15)} is already the quickest departure within two hours either side.</p><span></span></div>`;
-  }
-  let compare = "";
-  if (c.short || c.alt) {
-    const card = (key, title, r, sub) => `<button class="opt ${chosen === key ? "active" : ""}" data-choose="${key}"><span class="k">${title}</span><span class="v">${dur(r.minutes)} · ${r.km.toFixed(1)} km</span><span class="s">${sub}</span></button>`;
-    compare = `<div class="compare">${card("fast", "Fastest now", c.main, "Via " + esc(mainRoads(c.main.legs[0].steps)))}${c.alt ? card("alt", "Alternative", c.alt, "Via " + esc(mainRoads(c.alt.steps))) : ""}${c.short ? card("short", "Shortest distance", c.short, "Via " + esc(mainRoads(c.short.steps))) : ""}</div>`;
-  }
-  let orderNote = "";
-  if (state.stops.length >= 2 && state.optimise && c.main.asEntered) {
-    const gain = c.main.asEntered.minutes - c.main.minutes;
-    orderNote = gain >= 1 ? `<span class="chip"><i style="background:var(--good)"></i>Reordered stops save ${dur(gain)}</span>` : `<span class="chip"><i style="background:var(--good)"></i>Your stop order is already the fastest</span>`;
-  }
-  el.innerHTML = `
-    <div class="sum-top">
-      <div style="display:grid;gap:6px;min-width:0">
-        <div class="trip-name">${tripName}</div>
-        <div class="meta">${d.km.toFixed(1)} km · leave ${DAYS[state.day]} ${clock(c.t0)} · arrive ${clock(d.arrive)} · avg ${avg.toFixed(0)} km/h${state.stops.length ? ` · includes ${dur(state.dwell * state.stops.length)} at stops` : ""}</div>
-      </div>
-      <div class="eta">${etaHTML(d.minutes)}</div>
-    </div>
-    <div class="chips">
-      <span class="chip"><i style="background:var(--${bcls})"></i>${blabel} traffic</span>
-      <span class="chip">${delay >= 1 ? "Traffic adds " + dur(delay) + " over empty roads" : "Close to empty-road time"}</span>
-      ${state.rain ? `<span class="chip"><i style="background:var(--warn)"></i>Rain adjusted</span>` : ""}
-      ${orderNote}
-    </div>
-    ${callout}
-    ${compare}
-    <div class="actions"><a class="link-btn" href="${gmapsURL(d)}" target="_blank" rel="noopener">Open in Google Maps ↗</a><span class="note">Google Maps picks its own path using live traffic. Stops are passed in the order shown.</span></div>`;
-  const ub = $("#useBest"); if (ub) ub.addEventListener("click", () => update({ slot: bi }, { refit: false }));
-  el.querySelectorAll("[data-choose]").forEach(b => b.addEventListener("click", () => { chosen = b.dataset.choose; autoFit = true; animateRoute = true; render(); }));
-}
-function etaHTML(m) {
-  m = Math.round(m);
-  if (m < 60) return m + "<small> min</small>";
-  return Math.floor(m / 60) + "<small> h</small>" + (m % 60 ? " " + (m % 60) + "<small> min</small>" : "");
 }
 function mainRoads(steps) {
   const tally = new Map();
   steps.forEach(s => { const r = EDGES[s.e].road; tally.set(r, (tally.get(r) || 0) + s.km); });
   return [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(x => x[0]).join(", ") || "local roads";
 }
+// Group consecutive steps on the same road.
+function stretches(steps) {
+  const groups = [];
+  steps.forEach(s => { const road = EDGES[s.e].road, last = groups[groups.length - 1]; if (last && last.road === road) last.steps.push(s); else groups.push({ road, steps: [s] }); });
+  return groups.map(g => {
+    const kmv = g.steps.reduce((a, s) => a + s.km, 0), first = g.steps[0], end = g.steps[g.steps.length - 1];
+    const minutes = end.t1 - first.t0, free = g.steps.reduce((a, s) => a + s.free, 0);
+    return { road: g.road, from: first.from, to: end.to, km: kmv, minutes, lost: minutes - free, mult: g.steps.reduce((a, s) => a + s.mult * s.km, 0) / kmv, toll: g.steps.some(s => EDGES[s.e].toll), t0: first.t0 };
+  });
+}
+const metroLines = m => m.ride.rides.map(r => `<i style="background:${r.line.color}"></i>`).join("");
+const metroSummary = m => `${m.first.mode === "walk" ? "Walk" : m.first.mode === "bike" ? "Ride" : "Auto"} to ${esc(m.sa.name)}, ${m.ride.rides.map(r => r.line.name.replace(" Line", "")).join(" → ")} to ${esc(m.sb.name)}`;
+function gmapsURL(d) {
+  const ll = i => `${NODES[i].lat.toFixed(5)},${NODES[i].lon.toFixed(5)}`;
+  const p = new URLSearchParams({ api: "1", origin: ll(IDX[state.from]), destination: ll(IDX[state.to]), travelmode: d.kind === "metro" ? "transit" : "driving" });
+  if (d.kind !== "metro" && current.main.order.length) p.set("waypoints", current.main.order.map(ll).join("|"));
+  if (state.tolls && d.kind !== "metro") p.set("avoid", "tolls");
+  return `https://www.google.com/maps/dir/?${p}`;
+}
+function renderSummary() {
+  const el = $("#summary"), c = current;
+  if (!c.main) { el.innerHTML = `<div class="empty">No route found with these settings. Try allowing tolls.</div>`; return; }
+  const d = displayed(), isMetro = d.kind === "metro";
+  const avg = d.minutes > 0 ? d.km / (d.minutes / 60) : 0;
+  const tripName = isMetro ? `${esc(nm(IDX[state.from]))} → ${esc(nm(IDX[state.to]))} by Namma Metro`
+    : [state.from, ...c.main.order.map(i => NODES[i].id), state.to].map(id => esc(nm(IDX[id]))).join(" → ");
+  let chips = "", losses = "", callout = "";
+  if (isMetro) {
+    const saved = c.main.minutes - d.minutes;
+    chips = `<span class="chip"><span class="lines">${metroLines(d)}</span>${d.ride.rides.length > 1 ? `${d.ride.rides.length - 1} change` : "No change"}</span>
+      <span class="chip"><i style="background:var(--${saved > 0 ? "good" : "warn"})"></i>${saved >= 1 ? `${dur(saved)} quicker than the road` : `${dur(-saved)} slower than the road`}</span>
+      ${isPeak(c.t0 / 60, state.day) ? `<span class="chip">Peak hour: expect crowded trains</span>` : ""}`;
+  } else {
+    const steps = d.legs.flatMap(l => l.steps), w = steps.reduce((s, x) => s + x.km, 0) || 1;
+    const [bcls, blabel] = band(steps.reduce((s, x) => s + x.mult * x.km, 0) / w || 1);
+    const lost = d.minutes - d.free - (d.legs.length - 1) * state.dwell;
+    chips = `<span class="chip"><i style="background:var(--${bcls})"></i>${blabel} traffic</span>
+      <span class="chip">${lost >= 1 ? `Traffic adds ${dur(lost)} over empty roads` : "Close to empty-road time"}</span>
+      ${state.rain ? `<span class="chip"><i style="background:var(--warn)"></i>Rain adjusted</span>` : ""}`;
+    if (state.stops.length >= 2 && state.optimise && c.main.asEntered) {
+      const gain = c.main.asEntered.minutes - c.main.minutes;
+      chips += `<span class="chip"><i style="background:var(--good)"></i>${gain >= 1 ? `Reordered stops save ${dur(gain)}` : "Your stop order is already the fastest"}</span>`;
+    }
+    const worst = d.legs.flatMap(l => stretches(l.steps)).filter(s => s.lost >= 2).sort((a, b) => b.lost - a.lost).slice(0, 3);
+    if (worst.length) losses = `<div class="losses"><div class="label">Where you lose time</div><ul>${worst.map(s => `<li><span class="plus">+${Math.round(s.lost)} min</span><span><b>${esc(s.road)}</b> · ${esc(shortName(nm(s.from)))} → ${esc(shortName(nm(s.to)))}, about ${clock(s.t0)}</span></li>`).join("")}</ul></div>`;
+    const bi = bestInWindow(), gain = c.series.road[state.slot] - c.series.road[bi];
+    callout = bi !== state.slot && gain >= 3
+      ? `<div class="callout"><div class="big">${clock(bi * 15)}</div><p><b>${bi < state.slot ? "Leave earlier" : "Wait a little"}:</b> leaving at ${clock(bi * 15)} takes ${dur(c.series.road[bi])}, about ${dur(gain)} less than at ${clock(c.t0)}.</p><button class="pill-btn" type="button" id="useBest" data-slot="${bi}">Use ${clock(bi * 15)}</button></div>`
+      : `<div class="callout"><div class="big">✓</div><p>${clock(c.t0)} is already the quickest road departure within two hours either side.</p><span></span></div>`;
+  }
+  const card = (key, title, r, sub, extra = "") => `<button class="opt ${chosen === key ? "active" : ""}" type="button" data-choose="${key}"><span class="k">${title}${extra}</span><span class="v">${dur(r.minutes)} · ${r.km.toFixed(1)} km</span><span class="s">${sub}</span></button>`;
+  let compare = "";
+  if (c.short || c.alt || c.metro) {
+    const roadBest = c.main.minutes;
+    compare = `<div class="compare">${card("fast", "Fastest by road", c.main, `Via ${esc(mainRoads(c.main.legs[0].steps))}`)}`
+      + (c.alt ? card("alt", "Alternative", c.alt, `Via ${esc(mainRoads(c.alt.steps))}`) : "")
+      + (c.short ? card("short", "Shortest distance", c.short, `Via ${esc(mainRoads(c.short.steps))}`) : "")
+      + (c.metro ? card("metro", "Namma Metro", c.metro, `${metroSummary(c.metro)}${c.metro.minutes < roadBest - 1 ? ` · <span class="win">saves ${dur(roadBest - c.metro.minutes)}</span>` : ""}`, `<span class="lines">${metroLines(c.metro)}</span>`) : "")
+      + `</div>`;
+  }
+  el.innerHTML = `
+    <div class="sum-top">
+      <div style="display:grid;gap:6px;min-width:0">
+        <div class="trip-name">${tripName}</div>
+        <div class="meta">${d.km.toFixed(1)} km · leave ${DAYS[state.day]} ${clock(c.t0)} · arrive ${clock(d.arrive)}${isMetro ? "" : ` · avg ${avg.toFixed(0)} km/h`}${state.stops.length && !isMetro ? ` · includes ${dur(state.dwell * state.stops.length)} at stops` : ""}</div>
+      </div>
+      <div class="eta">${etaHTML(d.minutes)}</div>
+    </div>
+    <div class="chips">${chips}</div>
+    ${callout}${losses}${compare}
+    <div class="actions"><a class="link-btn" href="${gmapsURL(d)}" target="_blank" rel="noopener">Open in Google Maps ↗</a><span class="note">${isMetro ? "Opens Google's transit directions for live train times." : "Google Maps picks its own path using live traffic. Stops go in the order shown."}</span></div>`;
+}
+$("#summary").addEventListener("click", e => {
+  const ub = e.target.closest("#useBest");
+  if (ub) { update({ slot: +ub.dataset.slot }, { refit: false, keepChoice: true }); return; }
+  const b = e.target.closest("[data-choose]");
+  if (b) { chosen = b.dataset.choose; autoFit = true; compute(); }
+});
 
-// ---------- Map ----------
+/* ============================================================
+   Map (SVG with pan, zoom and tap)
+   ============================================================ */
 const svg = $("#map");
-const K = 2800, LON0 = 77.45, LAT0 = 13.24, COS = Math.cos(13 * R);
-const px = n => (n.lon - LON0) * COS * K, py = n => (LAT0 - n.lat) * K;
-NODES.forEach(n => { n.x = px(n); n.y = py(n); });
+const K = 2800, LON0 = 77.44, LAT0 = 13.24, COS = Math.cos(13 * RAD);
+const px = p => (p.lon - LON0) * COS * K, py = p => (LAT0 - p.lat) * K;
+[...NODES, ...ST, ...STATIONS].forEach(n => { n.x = px(n); n.y = py(n); });
 let view = { x: 0, y: 0, w: 900, h: 900 };
 const CORE = NODES.filter(n => n.lat < 13.08);
 function fit(points, padFrac = 0.12) {
   const xs = points.map(p => p.x), ys = points.map(p => p.y);
-  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  let w = Math.max(x1 - x0, 140), h = Math.max(y1 - y0, 140);
-  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  w *= 1 + padFrac * 2; h *= 1 + padFrac * 2;
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  let w = Math.max(x1 - x0, 140) * (1 + padFrac * 2), h = Math.max(y1 - y0, 140) * (1 + padFrac * 2);
   const r = svg.clientHeight / Math.max(1, svg.clientWidth) || 1;
   if (h / w > r) w = h / r; else h = w * r;
-  view = { x: cx - w / 2, y: cy - h / 2, w, h };
+  view = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
 }
-function scale() { return Math.min(svg.clientWidth / view.w, svg.clientHeight / view.h) || 1; }
-function routeNodes(d) {
-  const ids = new Set();
+const scale = () => Math.min(svg.clientWidth / view.w, svg.clientHeight / view.h) || 1;
+function routePoints(d) {
+  if (d.kind === "metro") return [d.from, d.to, ...d.ride.rides.flatMap(r => r.path.map(k => ST[k]))];
+  const ids = new Set([IDX[state.from], IDX[state.to], ...current.main.order]);
   d.legs.forEach(l => l.steps.forEach(s => { ids.add(s.from); ids.add(s.to); }));
-  ids.add(IDX[state.from]); ids.add(IDX[state.to]); current.main.order.forEach(i => ids.add(i));
   return [...ids].map(i => NODES[i]);
 }
-const COLOR = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", worst: "var(--worst)" };
 const WIDTH = { xway: 3.4, arterial: 2.8, main: 2, city: 1.4 };
+const f1 = v => v.toFixed(1);
 function renderMap() {
-  const d = current.main ? displayed() : null;
-  if (autoFit) { fit(d ? routeNodes(d) : CORE, 0.16); autoFit = false; }
-  const s = scale(), u = v => v / s; // px -> view units
+  const d = current.main ? displayed() : null, isMetro = d && d.kind === "metro";
+  if (autoFit) { fit(d ? routePoints(d) : CORE, 0.16); autoFit = false; }
+  const u = v => v / scale(); // screen px -> view units
   const o = opts(state), t0 = state.slot * 15;
-  const onRoute = new Set(d ? d.legs.flatMap(l => l.steps.map(x => x.e)) : []);
-  let h = `<rect x="${view.x - 5000}" y="${view.y - 5000}" width="${view.w + 10000}" height="${view.h + 10000}" fill="var(--map)"/>`;
-  const ell = (arr, fill) => arr.map(([lat, lon, rx, ry, rot]) => { const x = px({ lon }), y = py({ lat }); return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${(rx * K / 111).toFixed(1)}" ry="${(ry * K / 111).toFixed(1)}" transform="rotate(${rot} ${x.toFixed(1)} ${y.toFixed(1)})" fill="${fill}"/>`; }).join("");
-  h += ell(PARKS, "var(--park)") + ell(LAKES, "var(--water)");
-  // traffic layer
-  EDGES.forEach((E, i) => {
-    const A = NODES[E.a], B = NODES[E.b];
-    const m = (edgeMult(E, 0, t0, o) + edgeMult(E, 1, t0, o)) / 2;
-    const [cls] = band(m);
-    const dim = d && !onRoute.has(i);
-    h += `<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" stroke="${COLOR[cls]}" stroke-width="${WIDTH[E.cls]}" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="${dim ? 0.38 : 0.85}"${E.toll ? ` stroke-dasharray="6 3"` : ""}><title>${esc(E.road)}: ${band(m)[1].toLowerCase()} traffic at ${clock(t0)}</title></line>`;
-  });
-  const poly = steps => steps.length ? [NODES[steps[0].from], ...steps.map(s => NODES[s.to])].map(n => n.x.toFixed(1) + "," + n.y.toFixed(1)).join(" ") : "";
-  if (d) {
-    if (current.alt && chosen !== "alt" && state.stops.length === 0) h += `<polyline points="${poly(current.alt.steps)}" fill="none" stroke="var(--muted)" stroke-width="4" stroke-dasharray="2 7" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity=".9"/>`;
-    const all = d.legs.flatMap(l => l.steps);
-    // draw legs as one polyline per leg
-    d.legs.forEach(l => {
-      const pts = poly(l.steps);
-      if (!pts) return;
-      h += `<polyline points="${pts}" fill="none" stroke="var(--surface)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
-      h += `<polyline class="${animateRoute ? "route-line" : ""}" pathLength="2400" points="${pts}" fill="none" stroke="var(--accent)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
-    });
-    void all;
-  }
-  // nodes
-  const k = svg.clientWidth / view.w;
+  const onRoute = new Set(d && !isMetro ? d.legs.flatMap(l => l.steps.map(x => x.e)) : []);
   const zoomed = view.w < 520;
+  let h = `<rect x="${view.x - 5000}" y="${view.y - 5000}" width="${view.w + 10000}" height="${view.h + 10000}" fill="var(--map)"/>`;
+  const blobs = (arr, fill) => arr.map(([lat, lon, rx, ry, rot]) => { const x = px({ lon }), y = py({ lat }); return `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rx * K / 111)}" ry="${f1(ry * K / 111)}" transform="rotate(${rot} ${f1(x)} ${f1(y)})" fill="${fill}"/>`; }).join("");
+  h += blobs(PARKS, "var(--park)") + blobs(LAKES, "var(--water)");
+  // Roads, coloured by traffic at the chosen time.
+  EDGES.forEach((E, i) => {
+    const A = NODES[E.a], B = NODES[E.b], m = (edgeMult(E, 0, t0, o) + edgeMult(E, 1, t0, o)) / 2, [cls, lab] = band(m);
+    const dim = d && (isMetro || !onRoute.has(i));
+    h += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${COLOR[cls]}" stroke-width="${WIDTH[E.cls]}" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="${dim ? 0.32 : 0.85}"${E.toll ? ` stroke-dasharray="6 3"` : ""}><title>${esc(E.road)}: ${lab.toLowerCase()} traffic at ${clock(t0)}</title></line>`;
+  });
+  // Metro lines drawn as rails: line colour with a dashed centre.
+  METRO.forEach(L => {
+    const pts = L.stations.map(([, lat, lon]) => `${f1(px({ lon }))},${f1(py({ lat }))}`).join(" ");
+    const op = isMetro ? 0.35 : 0.55;
+    h += `<polyline points="${pts}" fill="none" stroke="${L.color}" stroke-width="3.2" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="${op}"/><polyline points="${pts}" fill="none" stroke="var(--map)" stroke-width="1" stroke-dasharray="3 4" vector-effect="non-scaling-stroke" opacity="${op}"/>`;
+  });
+  if (zoomed) STATIONS.forEach(s => { h += `<circle cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(s.lines.length > 1 ? 3.4 : 2.2).toFixed(2)}" fill="var(--map)" stroke="${s.lines[0].color}" stroke-width="1.4" vector-effect="non-scaling-stroke"><title>${esc(s.name)} metro</title></circle>`; });
+  const anim = animateRoute ? ` class="route-line" pathLength="2400"` : "";
+  const thick = (pts, color, dash = "") => `<polyline points="${pts}" fill="none" stroke="var(--surface)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><polyline${dash ? "" : anim} points="${pts}" fill="none" stroke="${color}" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+  const poly = steps => steps.length ? [NODES[steps[0].from], ...steps.map(s => NODES[s.to])].map(n => `${f1(n.x)},${f1(n.y)}`).join(" ") : "";
   const special = new Map();
-  if (current.main) { special.set(IDX[state.from], "A"); current.main.order.forEach((i, n) => special.set(i, String(n + 1))); special.set(IDX[state.to], special.has(IDX[state.to]) && IDX[state.to] === IDX[state.from] ? "A/B" : "B"); }
-  const routeSet = new Set(d ? routeNodes(d).map(n => IDX[n.id]) : []);
+  if (d && isMetro) {
+    h += thick(`${f1(d.from.x)},${f1(d.from.y)} ${f1(d.sa.x)},${f1(d.sa.y)}`, "var(--accent)", "1 7");
+    h += thick(`${f1(d.sb.x)},${f1(d.sb.y)} ${f1(d.to.x)},${f1(d.to.y)}`, "var(--accent)", "1 7");
+    d.ride.rides.forEach(r => { h += thick(r.path.map(k => `${f1(ST[k].x)},${f1(ST[k].y)}`).join(" "), r.line.color); });
+    [d.sa, d.sb, ...d.ride.rides.slice(1).map(r => ST[r.path[0]])].forEach(s => { h += `<circle cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(5).toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/><text x="${f1(s.x + u(8))}" y="${f1(s.y + u(14))}" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" fill="var(--ink)" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" pointer-events="none">${esc(s.name)} ▸</text>`; });
+  } else if (d) {
+    if (current.alt && chosen !== "alt" && !state.stops.length) h += `<polyline points="${poly(current.alt.steps)}" fill="none" stroke="var(--muted)" stroke-width="4" stroke-dasharray="2 7" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity=".9"/>`;
+    d.legs.forEach(l => { const pts = poly(l.steps); if (pts) h += thick(pts, "var(--accent)"); });
+  }
+  if (current.main) {
+    special.set(IDX[state.from], "A");
+    if (!isMetro) current.main.order.forEach((i, n) => special.set(i, String(n + 1)));
+    special.set(IDX[state.to], IDX[state.to] === IDX[state.from] ? "A/B" : "B");
+  }
+  const labelled = new Set(d && !isMetro ? routePoints(d).map(n => IDX[n.id]) : []);
   NODES.forEach((n, i) => {
     if (special.has(i)) return;
-    const r = u(n.major ? 3.6 : 2.6);
-    h += `<g data-node="${i}" class="nd"><circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${u(14).toFixed(2)}" fill="transparent"/><circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${r.toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/><title>${esc(n.name)}</title></g>`;
+    h += `<g data-node="${i}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(14).toFixed(2)}" fill="transparent"/><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(n.major ? 3.6 : 2.6).toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/><title>${esc(n.name)}</title></g>`;
   });
-  // labels
-  const fs = u(11.5);
-  NODES.forEach((n, i) => {
-    if (special.has(i)) return;
-    if (!(n.major || zoomed || routeSet.has(i))) return;
-    h += `<text x="${(n.x + u(6)).toFixed(1)}" y="${(n.y - u(5)).toFixed(1)}" font-size="${fs.toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="${n.major ? 600 : 500}" fill="var(--ink)" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(shortName(n.name))}</text>`;
-  });
+  const text = (x, y, size, weight, fill, s) => `<text x="${f1(x)}" y="${f1(y)}" font-size="${size.toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="${weight}" fill="${fill}" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(s)}</text>`;
+  NODES.forEach((n, i) => { if (!special.has(i) && (n.major || zoomed || labelled.has(i))) h += text(n.x + u(6), n.y - u(5), u(11.5), n.major ? 600 : 500, "var(--ink)", shortName(n.name)); });
   special.forEach((lab, i) => {
-    const n = NODES[i], r = u(lab.length > 1 ? 13 : 11);
-    const isStop = /^\d$/.test(lab);
-    h += `<g data-node="${i}" class="nd"><circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${r.toFixed(2)}" fill="${isStop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${n.x.toFixed(1)}" y="${(n.y + u(4)).toFixed(1)}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${isStop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;
-    h += `<text x="${(n.x + r + u(4)).toFixed(1)}" y="${(n.y + u(4)).toFixed(1)}" font-size="${u(12.5).toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" fill="var(--accent)" stroke="var(--map)" stroke-width="${u(3.5).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(shortName(n.name))}</text>`;
+    const n = NODES[i], r = u(lab.length > 1 ? 13 : 11), stop = /^\d$/.test(lab);
+    h += `<g data-node="${i}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${r.toFixed(2)}" fill="${stop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${f1(n.x)}" y="${f1(n.y + u(4))}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${stop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;
+    h += text(n.x + r + u(4), n.y + u(4), u(12.5), 600, "var(--accent)", shortName(n.name));
   });
-  void k;
   animateRoute = false;
   svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
   svg.innerHTML = h;
-  $("#legend").innerHTML = `<div><b>Traffic at ${DAYS[state.day]} ${clock(t0)}</b></div><div class="row"><span class="sw"><i style="background:var(--good)"></i>Light</span><span class="sw"><i style="background:var(--warn)"></i>Moderate</span><span class="sw"><i style="background:var(--bad)"></i>Heavy</span><span class="sw"><i style="background:var(--worst)"></i>Jammed</span></div><div class="row"><span class="sw"><i style="background:var(--accent);height:5px"></i>Your route</span>${current.alt && chosen !== "alt" && !state.stops.length ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 7px)"></i>Alternative</span>` : ""}<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 6px,transparent 6px 9px)"></i>Toll</span></div>`;
+  const altKey = current.alt && chosen !== "alt" && !state.stops.length && !isMetro;
+  $("#legend").innerHTML = `<div><b>Traffic at ${DAYS[state.day]} ${clock(t0)}</b></div>
+    <div class="row"><span class="sw"><i style="background:var(--good)"></i>Light</span><span class="sw"><i style="background:var(--warn)"></i>Moderate</span><span class="sw"><i style="background:var(--bad)"></i>Heavy</span><span class="sw"><i style="background:var(--worst)"></i>Jammed</span></div>
+    <div class="row"><span class="sw"><i style="background:var(--accent);height:5px"></i>Your route</span>${altKey ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 7px)"></i>Alternative</span>` : ""}<span class="sw"><i style="background:linear-gradient(90deg,var(--m-purple) 0 33%,var(--m-green) 33% 66%,var(--m-yellow) 66%)"></i>Metro</span></div>`;
 }
-const shortName = s => s.replace(/ \((?!ITPL|KIA|Forum|Sony World).*\)$/, "").replace("Kempegowda Airport (KIA)", "Airport (KIA)");
 
-// pan / zoom / tap
+// Pan, pinch, wheel zoom and junction taps.
 const pointers = new Map();
 let drag = null, moved = false, pinch = null;
-function toView(cx, cy) { const r = svg.getBoundingClientRect(), s = scale(); const ox = (r.width - view.w * s) / 2, oy = (r.height - view.h * s) / 2; return { x: view.x + (cx - r.left - ox) / s, y: view.y + (cy - r.top - oy) / s }; }
+function toView(cx, cy) { const r = svg.getBoundingClientRect(), s = scale(); return { x: view.x + (cx - r.left - (r.width - view.w * s) / 2) / s, y: view.y + (cy - r.top - (r.height - view.h * s) / 2) / s }; }
 function zoomAt(f, cx, cy) {
-  const p = toView(cx, cy);
-  const w = Math.min(2400, Math.max(110, view.w * f)), real = w / view.w;
-  view = { x: p.x - (p.x - view.x) * real, y: p.y - (p.y - view.y) * real, w, h: view.h * real };
+  const p = toView(cx, cy), w = Math.min(2400, Math.max(110, view.w * f)), k = w / view.w;
+  view = { x: p.x - (p.x - view.x) * k, y: p.y - (p.y - view.y) * k, w, h: view.h * k };
   renderMap();
 }
 svg.addEventListener("pointerdown", e => {
@@ -892,9 +1043,8 @@ svg.addEventListener("pointermove", e => {
   if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinch && pointers.size === 2) {
-    const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
-    const target = pinch.w * pinch.d / Math.max(10, d);
-    zoomAt(target / view.w, (a.x + b.x) / 2, (a.y + b.y) / 2); moved = true; return;
+    const [a, b] = [...pointers.values()], dd = Math.hypot(a.x - b.x, a.y - b.y);
+    zoomAt(pinch.w * pinch.d / Math.max(10, dd) / view.w, (a.x + b.x) / 2, (a.y + b.y) / 2); moved = true; return;
   }
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -904,15 +1054,13 @@ svg.addEventListener("pointermove", e => {
   view = { ...drag.view, x: drag.view.x - dx / s, y: drag.view.y - dy / s };
   svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
 });
-function endPointer(e) {
-  pointers.delete(e.pointerId);
-  svg.classList.remove("dragging");
+svg.addEventListener("pointerup", e => {
+  pointers.delete(e.pointerId); svg.classList.remove("dragging");
   if (pointers.size < 2) pinch = null;
   if (drag && !moved && drag.target) tapNode(+drag.target.dataset.node);
   else if (moved) renderMap();
   drag = null;
-}
-svg.addEventListener("pointerup", endPointer);
+});
 svg.addEventListener("pointercancel", e => { pointers.delete(e.pointerId); drag = null; pinch = null; });
 svg.addEventListener("wheel", e => { e.preventDefault(); zoomAt(Math.exp(e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
 function tapNode(i) {
@@ -926,63 +1074,107 @@ $("#zin").addEventListener("click", () => zoomAt(0.7, ...centre()));
 $("#zout").addEventListener("click", () => zoomAt(1 / 0.7, ...centre()));
 $("#zfit").addEventListener("click", () => { autoFit = true; renderMap(); });
 $("#zall").addEventListener("click", () => { fit(NODES, 0.04); renderMap(); });
-let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { autoFit = true; renderMap(); }, 120); }).observe(svg);
+let resizeTimer;
+new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (current) { autoFit = true; renderMap(); } }, 120); }).observe(svg);
 
-// ---------- Departure chart ----------
+/* ============================================================
+   Departure chart (one day, road bars + metro line)
+   ============================================================ */
+function niceStep(max) { return max > 150 ? 60 : max > 75 ? 30 : max > 30 ? 15 : 10; }
 function renderChart() {
-  const el = $("#chart"), s = current.series;
+  const el = $("#chart"), { road, metro } = current.series;
   if (!current.main) { el.innerHTML = ""; return; }
-  const W = 720, H = 230, L = 44, Rt = 10, T = 14, B = 30;
-  const vals = s.filter(v => v != null), mn = Math.min(...vals), mx = Math.max(...vals);
-  const step = mx > 150 ? 60 : mx > 75 ? 30 : mx > 30 ? 15 : 10;
-  const top = Math.ceil(mx / step) * step;
+  const W = 720, H = 240, L = 44, R = 10, T = 24, B = 30, bw = (W - L - R) / 96;
+  const all = [...road, ...metro].filter(v => v != null), rv = road.filter(v => v != null);
+  const mn = Math.min(...rv), mx = Math.max(...all), step = niceStep(mx), top = Math.ceil(mx / step) * step;
   const y = v => T + (H - T - B) * (1 - v / top);
-  const bw = (W - L - Rt) / 96;
   const bi = bestInWindow();
   let h = "";
-  for (let v = 0; v <= top; v += step) h += `<line x1="${L}" x2="${W - Rt}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${v}</text>`;
-  h += `<text x="${L - 8}" y="${T - 3}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="IBM Plex Sans, sans-serif">min</text>`;
+  for (let v = 0; v <= top; v += step) h += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${v}</text>`;
+  h += `<text x="${L - 8}" y="${T - 12}" text-anchor="end" font-size="10" fill="var(--muted)">min</text>`;
   const w0 = Math.max(0, state.slot - 8), w1 = Math.min(95, state.slot + 8);
   h += `<rect x="${L + w0 * bw}" y="${T}" width="${(w1 - w0 + 1) * bw}" height="${H - T - B}" fill="var(--accent-soft)"/>`;
-  s.forEach((v, i) => {
+  road.forEach((v, i) => {
     if (v == null) return;
-    const r = v / mn, cls = r < 1.15 ? "good" : r < 1.5 ? "warn" : r < 2 ? "bad" : "worst";
-    const x = L + i * bw + 0.6, yy = y(v);
-    const sel = i === state.slot;
-    h += `<rect class="bar" data-slot="${i}" x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${(bw - 1.2).toFixed(1)}" height="${(H - B - yy).toFixed(1)}" rx="1.5" fill="${COLOR[cls]}" opacity="${sel || i === bi ? 1 : 0.62}"${sel ? ` stroke="var(--ink)" stroke-width="1.5"` : ""}><title>Leave ${clock(i * 15)}: ${dur(v)}</title></rect>`;
+    const yy = y(v), sel = i === state.slot;
+    h += `<rect class="bar" data-slot="${i}" x="${f1(L + i * bw + 0.6)}" y="${f1(yy)}" width="${f1(bw - 1.2)}" height="${f1(H - B - yy)}" rx="1.5" fill="${COLOR[ratioBand(v / mn)]}" opacity="${sel || i === bi ? 1 : 0.62}"${sel ? ` stroke="var(--ink)" stroke-width="1.5"` : ""}><title>Leave ${clock(i * 15)}: ${dur(v)} by road${metro[i] != null ? `, ${dur(metro[i])} by metro` : ""}</title></rect>`;
   });
-  for (let hr = 0; hr <= 21; hr += 3) h += `<text x="${L + hr * 4 * bw}" y="${H - 10}" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${pad(hr % 24)}:00</text>`;
+  // Metro as a dashed line, broken where the metro is closed.
+  let seg = [];
+  const flush = () => { if (seg.length > 1) h += `<polyline points="${seg.join(" ")}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 3" pointer-events="none"/>`; seg = []; };
+  metro.forEach((v, i) => { if (v == null) flush(); else seg.push(`${f1(L + i * bw + bw / 2)},${f1(y(v))}`); });
+  flush();
+  for (let hr = 0; hr <= 21; hr += 3) h += `<text x="${L + hr * 4 * bw}" y="${H - 10}" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${pad(hr)}:00</text>`;
   const sx = L + state.slot * bw + bw / 2;
-  h += `<text x="${Math.min(W - 60, Math.max(L + 30, sx))}" y="${Math.max(T + 10, y(s[state.slot]) - 8)}" text-anchor="middle" font-size="11.5" font-weight="600" font-family="IBM Plex Sans, sans-serif" fill="var(--ink)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${dur(s[state.slot])}</text>`;
+  h += `<text x="${Math.min(W - 60, Math.max(L + 30, sx))}" y="${Math.max(T + 10, y(road[state.slot]) - 8)}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ink)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${dur(road[state.slot])}</text>`;
   el.innerHTML = h;
-  const di = s.indexOf(mn);
-  $("#chartNote").textContent = `Quickest all day: ${clock(di * 15)} (${dur(mn)}) · slowest ${dur(mx)}`;
+  const di = road.indexOf(mn);
+  const mv = metro.filter(v => v != null);
+  $("#chartNote").textContent = `Road quickest at ${clock(di * 15)} (${dur(mn)}), slowest ${dur(Math.max(...rv))}${mv.length ? ` · metro ${dur(Math.min(...mv))}–${dur(Math.max(...mv))}` : ""}`;
 }
-$("#chart").addEventListener("click", e => { const b = e.target.closest("[data-slot]"); if (b) update({ slot: +b.dataset.slot }, { refit: false }); });
+$("#chart").addEventListener("click", e => { const b = e.target.closest("[data-slot]"); if (b) update({ slot: +b.dataset.slot }, { refit: false, keepChoice: true }); });
 
-// ---------- Directions ----------
+/* ============================================================
+   Weekly rhythm heatmap (7 days x half hours 05:00–23:30)
+   ============================================================ */
+function renderWeek() {
+  const el = $("#week");
+  if (!current.main) { el.innerHTML = ""; $("#weekNote").textContent = ""; return; }
+  const W = 760, H = 214, L = 40, T = 8, R = 6, B = 26, S0 = 20, S1 = 94; // 15-min slot indices, every 2nd slot
+  const cols = []; for (let s = S0; s <= S1; s += 2) cols.push(s);
+  const cw = (W - L - R) / cols.length, ch = (H - T - B) / 7;
+  const grid = DAYS.map((_, d) => { const r = (d === state.day ? current.series : daySeries(d, current.main.order, false)).road; return cols.map(s => r[s]); });
+  const vals = grid.flat().filter(v => v != null), mn = Math.min(...vals), mx = Math.max(...vals);
+  let h = "", best = null;
+  grid.forEach((row, d) => {
+    h += `<text x="${L - 8}" y="${T + d * ch + ch / 2 + 4}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="${d === state.day ? "var(--ink)" : "var(--muted)"}" font-weight="${d === state.day ? 600 : 500}">${DAYS[d]}</text>`;
+    row.forEach((v, j) => {
+      if (v == null) return;
+      const s = cols[j], sel = d === state.day && Math.abs(s - state.slot) <= 1;
+      if (!best || v < best.v) best = { v, d, s };
+      h += `<rect class="cell" data-day="${d}" data-slot="${s}" x="${f1(L + j * cw + 0.75)}" y="${f1(T + d * ch + 0.75)}" width="${f1(cw - 1.5)}" height="${f1(ch - 1.5)}" rx="2.5" fill="${COLOR[ratioBand(v / mn)]}" opacity="${0.35 + 0.65 * Math.min(1, (v - mn) / Math.max(1, mx - mn) * 0.6 + 0.4)}"${sel ? ` stroke="var(--ink)" stroke-width="2"` : ""}><title>${DAYS[d]} ${clock(s * 15)}: ${dur(v)}</title></rect>`;
+    });
+  });
+  cols.forEach((s, j) => { if (s % 12 === 0) h += `<text x="${f1(L + j * cw)}" y="${H - 8}" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${clock(s * 15)}</text>`; });
+  el.innerHTML = h;
+  const weekday = grid.slice(0, 5).map((row, d) => ({ d, v: row[cols.indexOf(state.slot - (state.slot % 2))] })).filter(x => x.v != null).sort((a, b) => a.v - b.v);
+  const tip = weekday.length > 1 && weekday[weekday.length - 1].v - weekday[0].v >= 3 ? ` · at ${clock((state.slot - (state.slot % 2)) * 15)}, ${DAYS[weekday[0].d]} is ${dur(weekday[weekday.length - 1].v - weekday[0].v)} quicker than ${DAYS[weekday[weekday.length - 1].d]}` : "";
+  $("#weekNote").textContent = `Quickest: ${DAYS[best.d]} ${clock(best.s * 15)} (${dur(best.v)})${tip}`;
+}
+$("#week").addEventListener("click", e => { const c = e.target.closest("[data-slot]"); if (c) update({ day: +c.dataset.day, slot: +c.dataset.slot }, { refit: false, keepChoice: true }); });
+
+/* ============================================================
+   Directions
+   ============================================================ */
 function renderSteps() {
   const el = $("#steps"), d = current.main ? displayed() : null;
   if (!d) { el.innerHTML = ""; $("#dirNote").textContent = ""; return; }
   let h = "";
-  d.legs.forEach((leg, li) => {
-    if (!leg.steps.length) return;
-    const groups = [];
-    leg.steps.forEach(s => {
-      const road = EDGES[s.e].road, last = groups[groups.length - 1];
-      if (last && last.road === road) { last.steps.push(s); } else groups.push({ road, steps: [s] });
+  const li = (dot, title, via, mins, km, at) => `<li><span class="${dot.cls}" style="background:${dot.color}"></span><div><div class="road">${title}</div><div class="via">${via}</div></div><div class="num"><b>${dur(mins)}</b><br>${km != null ? `${km.toFixed(1)} km · ` : ""}${clock(at)}</div></li>`;
+  if (d.kind === "metro") {
+    const modeName = { walk: "Walk", auto: "Auto or cab", bike: "Ride and park" };
+    let t = d.depart;
+    h += li({ cls: "dot", color: "var(--accent)" }, `${modeName[d.first.mode]} to ${esc(d.sa.name)} metro`, `From ${esc(d.from.name)}`, d.first.minutes, d.first.km, t);
+    t += d.first.minutes;
+    d.ride.rides.forEach((r, i) => {
+      const a = ST[r.path[0]], b = ST[r.path[r.path.length - 1]], fwd = r.path[1] > r.path[0] ? 1 : -1;
+      const toward = r.line.stations[fwd > 0 ? r.line.stations.length - 1 : 0][0];
+      const mins = (r.path.length - 1) * r.line.run + (i === 0 ? wait(r.line, t, state.day) : TRANSFER_WALK + wait(r.line, t, state.day));
+      if (i > 0) h += `<li class="stopline"><span class="dot"></span><div>Change at ${esc(a.name)} to the ${r.line.name}</div></li>`;
+      h += li({ cls: "dot bar", color: r.line.color }, `${r.line.name} toward ${esc(toward)}`, `${esc(a.name)} → ${esc(b.name)} · ${r.path.length - 1} stop${r.path.length > 2 ? "s" : ""} · includes the wait`, mins, null, t);
+      t += mins;
     });
-    groups.forEach(gp => {
-      const kmv = gp.steps.reduce((a, s) => a + s.km, 0), mins = gp.steps[gp.steps.length - 1].t1 - gp.steps[0].t0;
-      const m = gp.steps.reduce((a, s) => a + s.mult * s.km, 0) / kmv;
-      const [cls, lab] = band(m);
-      const toll = gp.steps.some(s => EDGES[s.e].toll);
-      h += `<li><span class="dot" style="background:var(--${cls})" title="${lab} traffic"></span><div><div class="road">${esc(gp.road)}${toll ? " · toll" : ""}</div><div class="via">${esc(nm(gp.steps[0].from))} → ${esc(nm(gp.steps[gp.steps.length - 1].to))} · ${lab.toLowerCase()} traffic</div></div><div class="num"><b>${dur(mins)}</b><br>${kmv.toFixed(1)} km · ${clock(gp.steps[0].t0)}</div></li>`;
+    h += li({ cls: "dot", color: "var(--accent)" }, `${modeName[d.last.mode]} to ${esc(d.to.name)}`, `From ${esc(d.sb.name)} metro`, d.last.minutes, d.last.km, t);
+  } else {
+    d.legs.forEach((leg, i) => {
+      stretches(leg.steps).forEach(s => {
+        const [cls, lab] = band(s.mult);
+        h += li({ cls: "dot", color: `var(--${cls})` }, `${esc(s.road)}${s.toll ? " · toll" : ""}`, `${esc(nm(s.from))} → ${esc(nm(s.to))} · ${lab.toLowerCase()} traffic`, s.minutes, s.km, s.t0);
+      });
+      if (i < d.legs.length - 1) h += `<li class="stopline"><span class="dot"></span><div>Stop ${i + 1}: ${esc(nm(current.main.order[i]))} · ${dur(state.dwell)} · leave ${clock(d.legs[i + 1].depart)}</div></li>`;
     });
-    if (li < d.legs.length - 1) h += `<li class="stopline"><span class="dot"></span><div>Stop ${li + 1}: ${esc(nm(current.main.order[li]))} · ${dur(state.dwell)} · leave ${clock(d.legs[li + 1].depart)}</div></li>`;
-  });
-  if (!h) h = `<li class="stopline"><span class="dot"></span><div>Start and destination are the same place.</div></li>`;
-  el.innerHTML = h;
+  }
+  el.innerHTML = h || `<li class="stopline"><span class="dot"></span><div>Start and destination are the same place.</div></li>`;
   $("#dirNote").textContent = `Arrive ${clock(d.arrive)}`;
 }
 
@@ -990,6 +1182,5 @@ syncControls();
 compute();
 })();
 </script>
-
 </body>
 </html>

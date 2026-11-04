@@ -1,25 +1,29 @@
 # Namma Route
 
-Two versions of a Bengaluru route planner:
+A Bengaluru commute planner that answers three questions: which road, which hour, and whether the metro would be quicker.
 
-- `index.html`: offline version. It uses a built-in model of the main roads and typical traffic and needs no key.
-- `live/index.html`: live version. It uses the Google Routes API (live and predicted traffic, alternative routes, best stop order) and the Maps JavaScript API (map with Google's live traffic layer).
+| Page | Data | Needs |
+| --- | --- | --- |
+| `index.html` | Built-in model of ~80 junctions, the arterial roads and the Purple, Green and Yellow metro lines, with a typical-day traffic model | Nothing; works offline |
+| `live/index.html` | Google Routes API (live and predicted traffic, transit) and Maps JavaScript API (live traffic layer) | Your Google Maps API key |
+
+## Features
+- **Fastest route** that accounts for when you leave: morning traffic toward the tech corridors and evening traffic away from them, lighter weekends, and known bottlenecks like Silk Board, Tin Factory and Hebbal.
+- **Namma Metro vs road:** door-to-door metro trips, including the walk or auto to and from the station, line changes at Majestic and RV Road, and the wait for the next train, compared with driving.
+- **When should you leave?** Trip time for every 15-minute departure, with the metro alternative drawn on top.
+- **Your week on this trip:** a grid of every day and half hour, to pick office days and hours.
+- **Where you lose time:** the stretches that cost you the most (offline), or the slow and jammed stretches Google reports, named after the nearest landmark (live).
+- **Multiple stops:** up to 6 stops (offline) or 8 (live), put in the fastest order. Also car or two-wheeler, avoid tolls, rain mode, and handoff to Google Maps.
 
 ## Run the live version
-
 ```bash
-cd namma-route
 python3 -m http.server 8000
 ```
+Open http://localhost:8000/live/ and paste your API key. It is stored only in your browser.
 
-Open http://localhost:8000/live/ and paste your API key. The key is stored only in your browser.
+Google Cloud setup: create a project with billing, enable **Routes API** and **Maps JavaScript API**, then create a key restricted to those APIs and to your site's address (`http://localhost:8000/*` or `https://<user>.github.io/*`).
 
-### Google Cloud setup
-1. Create a project with billing turned on.
-2. Enable **Routes API** and **Maps JavaScript API**.
-3. Create an API key. Restrict it to those two APIs and to your site's address (for example `http://localhost:8000/*`).
+Google bills per request, and the page calls it only when you press a button: Plan route is 1 request, Compare with Namma Metro is 1, and Check departures is 7.
 
-Google bills per request. The page calls Google only when you press **Plan route** (1 request) or **Check departures** (7 requests).
-
-### Use it on your phone
-Host the folder on any static host, for example GitHub Pages, and add that address to the key's website restrictions.
+## Deploy to GitHub Pages
+Push this folder to a public repository, then turn on **Settings → Pages → Deploy from a branch → `main` / root**.

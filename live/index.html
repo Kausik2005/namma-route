@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Namma Route Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: control rail left, working surface right (summary, live map, departure scan, directions); stacks on phones. */
+:root {
+  --bg: #eef0ec; --surface: #ffffff; --sunk: #f6f7f4; --ink: #1a2026; --muted: #5b646c; --line: #d8dcd4;
+  --accent: #6a3d9a; --accent-soft: #efe7f8; --accent-ink: #ffffff;
+  --good: #2c8548; --warn: #c3860c; --bad: #c8432b; --worst: #8a1d22;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111519; --surface: #192027; --sunk: #141a20; --ink: #e6e9e5; --muted: #9aa3ab; --line: #2a333b;
+    --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
+    --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111519; --surface: #192027; --sunk: #141a20; --ink: #e6e9e5; --muted: #9aa3ab; --line: #2a333b;
+  --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
+  --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(20px, env(safe-area-inset-top, 0px)) 48px;
+}
+.app { max-width: 1320px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: -0.02em; margin: 0; line-height: 1.1; }
+h1 span { color: var(--accent); }
+.tag { color: var(--muted); margin: 0; }
+.status { display: inline-flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.status.live i { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); }
+.layout { display: grid; grid-template-columns: minmax(280px, 350px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.rail, .card, .summary { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.rail { padding: 18px; display: grid; gap: 20px; }
+.group { display: grid; gap: 10px; }
+.label { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.field { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.pin { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; background: var(--accent); color: var(--accent-ink); }
+.pin.stop { background: var(--surface); color: var(--accent); border: 2px solid var(--accent); }
+input[type="text"], input[type="password"], input[type="date"], input[type="time"], select {
+  width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px;
+}
+input:focus-visible, button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { font: inherit; cursor: pointer; }
+.icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
+.icon-btn:hover { color: var(--ink); border-color: var(--muted); }
+.ghost { border: 1px dashed var(--line); background: transparent; color: var(--accent); border-radius: 9px; padding: 7px 10px; font-weight: 500; text-align: left; }
+.ghost:hover { border-color: var(--accent); }
+.ghost:disabled { opacity: .45; cursor: not-allowed; }
+.primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 11px 16px; font-weight: 600; font-size: 15px; }
+.primary:hover { filter: brightness(1.08); }
+.primary:disabled { opacity: .6; cursor: progress; }
+.pill-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 500; }
+.pill-btn:hover { border-color: var(--accent); color: var(--accent); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: flex; flex-wrap: wrap; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg label { flex: 1 1 auto; text-align: center; position: relative; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 6px 8px; border-radius: 7px; font-weight: 500; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; margin-top: 2px; flex: none; }
+.check small { display: block; color: var(--muted); }
+.note { color: var(--muted); font-size: 12.5px; }
+.err { color: var(--bad); font-weight: 500; }
+
+.setup { padding: 18px 20px; display: grid; gap: 12px; border-color: var(--accent); }
+.setup ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 75ch; }
+.setup code { font-family: var(--font-mono); font-size: 12.5px; background: var(--sunk); padding: 1px 5px; border-radius: 5px; }
+.keyrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; max-width: 560px; }
+.keybar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.keybar code { font-family: var(--font-mono); }
+
+.work { display: grid; gap: 18px; min-width: 0; }
+.summary { padding: 18px 20px; display: grid; gap: 14px; }
+.sum-top { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: flex-end; justify-content: space-between; }
+.eta { font-family: var(--font-display); font-weight: 700; font-size: 46px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.eta small { font-size: 20px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.trip-name { font-weight: 600; font-size: 16px; text-wrap: balance; }
+.meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--line); background: var(--sunk); }
+.chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.opt { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; display: grid; gap: 2px; background: var(--surface); text-align: left; color: var(--ink); }
+.opt.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.opt .v { font-family: var(--font-mono); font-size: 16px; font-variant-numeric: tabular-nums; }
+.opt .s { color: var(--muted); font-size: 12.5px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.link-btn { display: inline-flex; gap: 6px; align-items: center; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 8px 14px; border-radius: 9px; font-weight: 600; }
+.empty { color: var(--muted); }
+
+.mapwrap { position: relative; height: clamp(360px, 62vh, 640px); background: var(--sunk); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+#map { width: 100%; height: 100%; }
+.map-msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+.legend { position: absolute; left: 10px; bottom: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; font-size: 12px; max-width: calc(100% - 20px); }
+.legend label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.legend input { accent-color: var(--accent); }
+.sw { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.sw i { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.card { padding: 16px 18px; display: grid; gap: 12px; min-width: 0; }
+h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.chart-scroll { overflow-x: auto; }
+#chart { width: 100%; min-width: 420px; height: auto; display: block; }
+#chart .bar { cursor: pointer; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; max-height: 520px; overflow: auto; }
+.steps li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.steps li:first-child { border-top: 0; }
+.steps .num { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; text-align: right; }
+.steps li.stopline { grid-template-columns: minmax(0, 1fr); color: var(--accent); font-weight: 600; }
+footer { color: var(--muted); font-size: 12.5px; max-width: 80ch; }
+footer p { margin: 0 0 6px; }
+footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>Namma Route <span>Live</span></h1>
+      <p class="tag">Bengaluru routes on live and predicted Google traffic.</p>
+    </div>
+    <div class="status" id="status"><i></i><span>No API key yet</span></div>
+  </header>
+
+  <section class="card setup" id="setup" hidden>
+    <h2>Connect your Google Maps API key</h2>
+    <ol>
+      <li>In the <a href="https://console.cloud.google.com/google/maps-apis/overview" target="_blank" rel="noopener">Google Cloud console</a>, create a project with billing turned on.</li>
+      <li>Enable <b>Routes API</b> (routing and traffic) and <b>Maps JavaScript API</b> (the map and its traffic layer).</li>
+      <li>Create an API key. Under key restrictions, limit it to those two APIs and to the website where you host this page (for example <code>http://localhost:8000/*</code> or <code>https://yourname.github.io/*</code>).</li>
+      <li>Paste it below. It is stored only in this browser.</li>
+    </ol>
+    <div class="keyrow">
+      <input type="password" id="keyInput" placeholder="AIza…" autocomplete="off" aria-label="Google Maps API key">
+      <button class="primary" id="saveKey" type="button">Save key</button>
+    </div>
+    <div class="note">Google bills Routes API per request. This page only calls it when you press Plan route or Find the best time, never in the background.</div>
+  </section>
+
+  <div class="layout">
+    <aside class="rail" aria-label="Trip settings">
+      <form id="tripForm" class="group">
+        <div class="label">Trip</div>
+        <div class="field"><span class="pin" aria-hidden="true">A</span><input type="text" id="from" list="places" placeholder="Start: area, landmark or address" autocomplete="off" aria-label="Start"><button class="icon-btn" id="swap" type="button" title="Swap start and destination" aria-label="Swap start and destination">⇅</button></div>
+        <div id="stops" class="group"></div>
+        <div class="field"><span class="pin" aria-hidden="true">B</span><input type="text" id="to" list="places" placeholder="Destination" autocomplete="off" aria-label="Destination"><span></span></div>
+        <button class="ghost" id="addStop" type="button">+ Add a stop on the way</button>
+        <label class="check" id="optRow" hidden><input type="checkbox" id="optimise" checked><span>Let Google find the fastest stop order<small>Start and destination stay fixed.</small></span></label>
+        <div class="note">Pick a suggestion or type any address. You can also click the map to drop the start or destination.</div>
+        <datalist id="places"></datalist>
+
+        <div class="label" style="margin-top:10px">Leave</div>
+        <div class="seg" role="radiogroup" aria-label="Departure">
+          <label><input type="radio" name="when" value="now" checked><span>Now</span></label>
+          <label><input type="radio" name="when" value="later"><span>Later</span></label>
+        </div>
+        <div class="two" id="laterRow" hidden>
+          <input type="date" id="date" aria-label="Departure date">
+          <input type="time" id="time" step="300" aria-label="Departure time (IST)">
+        </div>
+
+        <div class="label" style="margin-top:10px">Vehicle</div>
+        <div class="seg" role="radiogroup" aria-label="Vehicle">
+          <label><input type="radio" name="veh" value="DRIVE" checked><span>Car / cab</span></label>
+          <label><input type="radio" name="veh" value="TWO_WHEELER"><span>Two-wheeler</span></label>
+        </div>
+        <label class="check"><input type="checkbox" id="tolls"><span>Avoid tolls</span></label>
+        <label class="check"><input type="checkbox" id="highways"><span>Avoid highways</span></label>
+
+        <button class="primary" id="plan" type="submit">Plan route</button>
+        <div class="note" id="planMsg"></div>
+      </form>
+      <div class="keybar" id="keybar" hidden><span>API key <code id="keyTail"></code></span><button class="pill-btn" id="changeKey" type="button">Change key</button></div>
+    </aside>
+
+    <main class="work">
+      <section class="summary" id="summary" aria-live="polite"><div class="empty">Enter a start and destination, then press Plan route.</div></section>
+
+      <div class="mapwrap">
+        <div id="map" role="region" aria-label="Map"></div>
+        <div class="map-msg" id="mapMsg">The live map appears once your API key is saved.</div>
+        <div class="legend" id="legend" hidden>
+          <label><input type="checkbox" id="trafficToggle" checked> Live traffic layer</label>
+          <div class="row"><span class="sw"><i style="background:var(--accent);height:5px"></i>Route</span><span class="sw"><i style="background:#e8a219"></i>Slow</span><span class="sw"><i style="background:#d93025"></i>Jam</span><span class="sw"><i style="background:#9aa0a6"></i>Other routes</span></div>
+        </div>
+      </div>
+
+      <div class="lower">
+        <section class="card">
+          <div class="card-head"><h2>Best time to leave</h2><span class="note" id="scanNote"></span></div>
+          <div class="row"><button class="pill-btn" id="scan" type="button" disabled>Check departures over the next 3 hours</button><span class="note">Uses 7 route requests.</span></div>
+          <div class="chart-scroll"><svg id="chart" hidden viewBox="0 0 640 220" role="img" aria-label="Trip time by departure time"></svg></div>
+          <div class="note" id="scanHint">Plan a route first, then check how the trip time changes if you leave later. Google predicts traffic for future departures from historical and live data.</div>
+        </section>
+        <section class="card">
+          <div class="card-head"><h2>Directions</h2><span class="note" id="dirNote"></span></div>
+          <ol class="steps" id="steps"></ol>
+        </section>
+      </div>
+
+      <footer>
+        <p>Trip times, alternatives, stop order and the traffic on each route come from the Google Routes API with traffic-aware routing. The traffic layer on the map is Google's live feed.</p>
+        <p>No key handy? The <a href="../index.html">offline Namma Route</a> estimates the same trips with a typical-day traffic model.</p>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const KEY_STORE = "namma-route-gmaps-key", STATE_STORE = "namma-route-live";
+const PLACES = [
+  ["Majestic (Kempegowda Bus Stn)",12.9767,77.5713],["KR Market",12.9634,77.5770],["Town Hall",12.9640,77.5855],["Vidhana Soudha",12.9797,77.5907],
+  ["MG Road",12.9755,77.6060],["Richmond Circle",12.9615,77.5975],["Shivajinagar",12.9857,77.6050],["Cantonment Railway Station",12.9935,77.5985],
+  ["Trinity Circle",12.9727,77.6180],["Ulsoor",12.9815,77.6210],["Frazer Town",12.9990,77.6135],["Lalbagh",12.9507,77.5848],["Basavanagudi",12.9420,77.5735],
+  ["Jayanagar 4th Block",12.9290,77.5830],["Dairy Circle",12.9385,77.6005],["Koramangala (Forum)",12.9346,77.6111],["Koramangala (Sony World)",12.9365,77.6265],
+  ["Madiwala",12.9220,77.6180],["Silk Board Junction",12.9177,77.6233],["BTM Layout",12.9160,77.6100],["Jayadeva Hospital",12.9180,77.5995],["JP Nagar",12.9090,77.5850],
+  ["Banashankari",12.9180,77.5735],["Bannerghatta Road (Arekere)",12.8880,77.5970],["Bommanahalli",12.9030,77.6240],["Electronic City",12.8452,77.6602],
+  ["HSR Layout",12.9115,77.6440],["Indiranagar",12.9784,77.6408],["Domlur",12.9610,77.6387],["HAL Old Airport Road",12.9590,77.6600],["Tin Factory",12.9969,77.6696],
+  ["KR Puram",13.0040,77.6810],["Mahadevapura",12.9930,77.6960],["Marathahalli",12.9560,77.7010],["Whitefield (ITPL)",12.9866,77.7366],["Hoodi",12.9920,77.7160],
+  ["Varthur",12.9400,77.7470],["Bellandur (Ecospace)",12.9280,77.6800],["Sarjapur Road (Doddakannelli)",12.9100,77.6860],["Carmelaram",12.9070,77.7060],
+  ["Mekhri Circle",13.0145,77.5838],["Hebbal Flyover",13.0358,77.5970],["Manyata Tech Park",13.0475,77.6215],["Hennur",13.0300,77.6420],["Yelahanka",13.1000,77.6000],
+  ["Kempegowda International Airport",13.1986,77.7066],["Malleshwaram",13.0035,77.5710],["Rajajinagar",12.9910,77.5530],["Yeshwanthpur",13.0237,77.5500],
+  ["Peenya",13.0390,77.5180],["Vijayanagar",12.9710,77.5340],["Nagarbhavi",12.9610,77.5110],["RR Nagar",12.9270,77.5150],["Kengeri",12.9080,77.4850],
+];
+const BY_NAME = new Map(PLACES.map(([n, lat, lon]) => [n.toLowerCase(), { lat, lon }]));
+$("#places").innerHTML = PLACES.map(([n]) => `<option value="${n}"></option>`).join("");
+
+// ---------- helpers ----------
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const secs = d => d ? parseFloat(String(d)) : 0;
+const pad = n => String(n).padStart(2, "0");
+const IST = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const ISTDAY = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short" });
+const istClock = d => IST.format(d);
+const dur = s => { const m = Math.round(s / 60); return m < 60 ? m + " min" : Math.floor(m / 60) + " h" + (m % 60 ? " " + (m % 60) + " min" : ""); };
+const etaHTML = s => { const m = Math.round(s / 60); return m < 60 ? m + "<small> min</small>" : Math.floor(m / 60) + "<small> h</small>" + (m % 60 ? " " + (m % 60) + "<small> min</small>" : ""); };
+const km = m => (m / 1000).toFixed(1) + " km";
+function band(r) { return r < 1.15 ? ["good", "Light"] : r < 1.4 ? ["warn", "Moderate"] : r < 1.8 ? ["bad", "Heavy"] : ["worst", "Jammed"]; }
+function istParts(d) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).map(x => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+}
+const fromIST = (date, time) => new Date(`${date}T${time}:00+05:30`);
+function decode(str) {
+  const pts = []; let i = 0, lat = 0, lng = 0;
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let b, shift = 0, res = 0;
+      do { b = str.charCodeAt(i++) - 63; res |= (b & 31) << shift; shift += 5; } while (b >= 32);
+      const v = res & 1 ? ~(res >> 1) : res >> 1;
+      if (k === 0) lat += v; else lng += v;
+    }
+    pts.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return pts;
+}
+
+// ---------- state ----------
+let state = { from: { text: "HSR Layout" }, to: { text: "Manyata Tech Park" }, stops: [], when: "now", date: "", time: "", veh: "DRIVE", tolls: false, highways: false, optimise: true };
+try { const s = JSON.parse(localStorage.getItem(STATE_STORE) || "null"); if (s && s.from && s.to) state = { ...state, ...s }; } catch (e) {}
+const saveState = () => { try { localStorage.setItem(STATE_STORE, JSON.stringify(state)); } catch (e) {} };
+let apiKey = ""; try { apiKey = localStorage.getItem(KEY_STORE) || ""; } catch (e) {}
+let result = null, selected = 0, lastReq = null, planning = false;
+
+function syncForm() {
+  $("#from").value = state.from.text; $("#to").value = state.to.text;
+  $("#stops").innerHTML = state.stops.map((s, i) => `<div class="field"><span class="pin stop" aria-hidden="true">${i + 1}</span><input type="text" list="places" id="stop-${i}" data-stop="${i}" placeholder="Stop ${i + 1}" autocomplete="off" aria-label="Stop ${i + 1}"><button class="icon-btn" type="button" data-remove="${i}" aria-label="Remove stop ${i + 1}">×</button></div>`).join("");
+  state.stops.forEach((s, i) => { $(`#stop-${i}`).value = s.text; });
+  $("#addStop").disabled = state.stops.length >= 8;
+  $("#optRow").hidden = state.stops.length < 2;
+  $("#optimise").checked = state.optimise;
+  document.querySelectorAll('input[name="when"]').forEach(r => r.checked = r.value === state.when);
+  document.querySelectorAll('input[name="veh"]').forEach(r => r.checked = r.value === state.veh);
+  $("#laterRow").hidden = state.when !== "later";
+  if (!state.date || fromIST(state.date, state.time || "09:00") < new Date()) {
+    const t = new Date(Date.now() + 60 * 60 * 1000); t.setMinutes(Math.ceil(t.getMinutes() / 15) * 15, 0, 0);
+    Object.assign(state, istParts(t));
+  }
+  $("#date").value = state.date; $("#time").value = state.time;
+  $("#date").min = istParts(new Date()).date;
+  $("#tolls").checked = state.tolls; $("#highways").checked = state.highways;
+}
+const placeFrom = (el, prev) => { const text = el.value.trim(); return prev && prev.text === text ? prev : { text }; };
+$("#from").addEventListener("change", e => { state.from = placeFrom(e.target, state.from); saveState(); });
+$("#to").addEventListener("change", e => { state.to = placeFrom(e.target, state.to); saveState(); });
+$("#stops").addEventListener("change", e => { const i = e.target.dataset.stop; if (i !== undefined) { state.stops[+i] = placeFrom(e.target, state.stops[+i]); saveState(); } });
+$("#stops").addEventListener("click", e => { const b = e.target.closest("[data-remove]"); if (b) { state.stops.splice(+b.dataset.remove, 1); saveState(); syncForm(); } });
+$("#addStop").addEventListener("click", () => { state.stops.push({ text: "" }); saveState(); syncForm(); $(`#stop-${state.stops.length - 1}`).focus(); });
+$("#swap").addEventListener("click", () => { [state.from, state.to] = [state.to, state.from]; state.stops.reverse(); saveState(); syncForm(); });
+$("#optimise").addEventListener("change", e => { state.optimise = e.target.checked; saveState(); });
+document.querySelectorAll('input[name="when"]').forEach(r => r.addEventListener("change", () => { state.when = r.value; saveState(); syncForm(); }));
+document.querySelectorAll('input[name="veh"]').forEach(r => r.addEventListener("change", () => { state.veh = r.value; saveState(); }));
+$("#date").addEventListener("change", e => { state.date = e.target.value; saveState(); });
+$("#time").addEventListener("change", e => { state.time = e.target.value; saveState(); });
+$("#tolls").addEventListener("change", e => { state.tolls = e.target.checked; saveState(); });
+$("#highways").addEventListener("change", e => { state.highways = e.target.checked; saveState(); });
+
+// ---------- key ----------
+function showKeyUI() {
+  const has = !!apiKey;
+  $("#setup").hidden = has;
+  $("#keybar").hidden = !has;
+  $("#keyTail").textContent = has ? "…" + apiKey.slice(-4) : "";
+  const st = $("#status");
+  st.classList.toggle("live", has);
+  st.querySelector("span").textContent = has ? "Live · Google traffic" : "No API key yet";
+}
+$("#saveKey").addEventListener("click", () => {
+  const k = $("#keyInput").value.trim();
+  if (!k) { $("#keyInput").focus(); return; }
+  apiKey = k; try { localStorage.setItem(KEY_STORE, k); } catch (e) {}
+  $("#keyInput").value = ""; showKeyUI(); loadMaps();
+});
+$("#changeKey").addEventListener("click", () => {
+  apiKey = ""; try { localStorage.removeItem(KEY_STORE); } catch (e) {}
+  showKeyUI(); $("#keyInput").focus();
+});
+
+// ---------- Google Maps JS ----------
+let map = null, traffic = null, overlays = [], mapsLoading = false, clickTarget = "from";
+function loadMaps() {
+  if (!apiKey || map || mapsLoading) return;
+  mapsLoading = true;
+  $("#mapMsg").textContent = "Loading map…";
+  window.gm_authFailure = () => { $("#mapMsg").hidden = false; $("#mapMsg").innerHTML = `<span class="err">Google rejected the key for the Maps JavaScript API.</span><br>Check that the API is enabled and that the key allows this site (${esc(location.origin)}).`; };
+  window.__nrMapsReady = initMap;
+  const s = document.createElement("script");
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async&callback=__nrMapsReady&region=IN&language=en-IN`;
+  s.async = true;
+  s.onerror = () => { mapsLoading = false; $("#mapMsg").innerHTML = `<span class="err">The map script did not load.</span> Check your connection.`; };
+  document.head.appendChild(s);
+}
+async function initMap() {
+  const { Map } = await google.maps.importLibrary("maps");
+  map = new Map($("#map"), { center: { lat: 12.9716, lng: 77.6146 }, zoom: 11, mapTypeControl: false, streetViewControl: false, fullscreenControl: true, clickableIcons: false, gestureHandling: "greedy" });
+  traffic = new google.maps.TrafficLayer();
+  if ($("#trafficToggle").checked) traffic.setMap(map);
+  $("#mapMsg").hidden = true; $("#legend").hidden = false;
+  map.addListener("click", e => {
+    const ll = e.latLng, p = { text: `Pin ${ll.lat().toFixed(5)}, ${ll.lng().toFixed(5)}`, lat: ll.lat(), lon: ll.lng() };
+    if (clickTarget === "from") { state.from = p; clickTarget = "to"; } else { state.to = p; clickTarget = "from"; }
+    saveState(); syncForm();
+    $("#planMsg").textContent = clickTarget === "to" ? "Start pinned. Click the map again to pin the destination." : "Destination pinned. Press Plan route.";
+  });
+  if (result) drawRoutes();
+}
+$("#trafficToggle").addEventListener("change", e => { if (traffic) traffic.setMap(e.target.checked ? map : null); });
+
+// ---------- Routes API ----------
+function waypoint(p) {
+  if (p.lat != null) return { location: { latLng: { latitude: p.lat, longitude: p.lon } } };
+  const k = BY_NAME.get(p.text.toLowerCase());
+  if (k) return { location: { latLng: { latitude: k.lat, longitude: k.lon } } };
+  return { address: /bengaluru|bangalore/i.test(p.text) ? p.text : p.text + ", Bengaluru, Karnataka" };
+}
+const MASK_FULL = ["routes.duration","routes.staticDuration","routes.distanceMeters","routes.polyline.encodedPolyline","routes.description","routes.routeLabels",
+  "routes.optimizedIntermediateWaypointIndex","routes.travelAdvisory.speedReadingIntervals","routes.legs.duration","routes.legs.staticDuration","routes.legs.distanceMeters",
+  "routes.legs.startLocation","routes.legs.endLocation","routes.legs.steps.distanceMeters","routes.legs.steps.staticDuration","routes.legs.steps.navigationInstruction"].join(",");
+const MASK_LITE = "routes.duration,routes.staticDuration,routes.distanceMeters";
+function buildBody(req, departure, { full = true, optimise = req.optimise, alternatives = true, optimal = true } = {}) {
+  const body = {
+    origin: waypoint(req.from), destination: waypoint(req.to), travelMode: req.veh,
+    routingPreference: optimal ? "TRAFFIC_AWARE_OPTIMAL" : "TRAFFIC_AWARE",
+    languageCode: "en-IN", regionCode: "in", units: "METRIC",
+    routeModifiers: { avoidTolls: req.tolls, avoidHighways: req.highways },
+  };
+  if (req.stops.length) { body.intermediates = req.stops.map(waypoint); if (optimise && req.stops.length >= 2) body.optimizeWaypointOrder = true; }
+  else if (alternatives) body.computeAlternativeRoutes = true;
+  if (departure && departure.getTime() > Date.now() + 60 * 1000) body.departureTime = departure.toISOString();
+  if (full) body.extraComputations = ["TRAFFIC_ON_POLYLINE"];
+  return body;
+}
+async function computeRoutes(body, mask) {
+  const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": mask },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) { const err = new Error(json.error?.message || `Routes API answered ${res.status}`); err.status = res.status; throw err; }
+  return json;
+}
+// Some option combinations are refused for TRAFFIC_AWARE_OPTIMAL; retry once with TRAFFIC_AWARE.
+async function routesWithFallback(req, departure, opts, mask) {
+  try { return await computeRoutes(buildBody(req, departure, { ...opts, optimal: true }), mask); }
+  catch (e) { if (e.status === 400 && !/API key|not been used|disabled|address|location/i.test(e.message)) return computeRoutes(buildBody(req, departure, { ...opts, optimal: false }), mask); throw e; }
+}
+function friendly(e) {
+  const m = e.message || String(e);
+  if (/API key not valid|API_KEY_INVALID/i.test(m)) return "Google says this API key is not valid. Check it under Change key.";
+  if (/not been used|is disabled|SERVICE_DISABLED/i.test(m)) return "Routes API is not enabled for this key's project. Enable it in the Google Cloud console, wait a minute, and try again.";
+  if (/referer|referrer/i.test(m)) return `This key does not allow requests from ${location.origin}. Add it to the key's website restrictions.`;
+  if (/billing/i.test(m)) return "Billing is not enabled for this Google Cloud project.";
+  if (/Failed to fetch|NetworkError/i.test(m)) return "Could not reach Google. Check your connection.";
+  return m;
+}
+const departureOf = req => req.when === "later" ? fromIST(req.date, req.time || "09:00") : new Date();
+
+$("#tripForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (planning) return;
+  state.from = placeFrom($("#from"), state.from); state.to = placeFrom($("#to"), state.to);
+  state.stops = state.stops.map((s, i) => placeFrom($(`#stop-${i}`), s)).filter(s => s.text);
+  saveState(); syncForm();
+  if (!apiKey) { $("#planMsg").innerHTML = `<span class="err">Add your Google Maps API key first.</span>`; $("#keyInput").focus(); return; }
+  if (!state.from.text || !state.to.text) { $("#planMsg").innerHTML = `<span class="err">Enter both a start and a destination.</span>`; return; }
+  const req = JSON.parse(JSON.stringify(state));
+  const dep = departureOf(req);
+  if (req.when === "later" && dep < new Date()) { $("#planMsg").innerHTML = `<span class="err">That departure time has passed. Pick a later time or choose Now.</span>`; return; }
+  planning = true; $("#plan").disabled = true; $("#plan").textContent = "Planning…"; $("#planMsg").textContent = "";
+  try {
+    const json = await routesWithFallback(req, dep, {}, MASK_FULL);
+    if (!json.routes || !json.routes.length) throw new Error("Google found no route between these places. Try a more specific address.");
+    const routes = json.routes.map((r, i) => ({ ...r, idx: i, d: secs(r.duration), s: secs(r.staticDuration) }));
+    const fastest = routes.reduce((a, b) => b.d < a.d ? b : a);
+    result = { routes, req, dep, fastest: fastest.idx, at: new Date() };
+    selected = fastest.idx; lastReq = req;
+    $("#scan").disabled = false; $("#chart").innerHTML = ""; $("#chart").hidden = true; $("#scanNote").textContent = "";
+    $("#scanHint").textContent = "Plan a route first, then check how the trip time changes if you leave later. Google predicts traffic for future departures from historical and live data.";
+    render();
+  } catch (err) {
+    $("#planMsg").innerHTML = `<span class="err">${esc(friendly(err))}</span>`;
+  } finally {
+    planning = false; $("#plan").disabled = false; $("#plan").textContent = "Plan route";
+  }
+});
+
+// ---------- render ----------
+function stopOrder(route) {
+  const n = result.req.stops.length;
+  const o = route.optimizedIntermediateWaypointIndex;
+  return Array.isArray(o) && o.length === n && o.every(i => i >= 0) ? o : [...Array(n).keys()];
+}
+function gmapsURL(route) {
+  const enc = p => p.lat != null ? `${p.lat},${p.lon}` : (BY_NAME.get(p.text.toLowerCase()) ? `${BY_NAME.get(p.text.toLowerCase()).lat},${BY_NAME.get(p.text.toLowerCase()).lon}` : waypoint(p).address);
+  const q = new URLSearchParams({ api: "1", origin: enc(result.req.from), destination: enc(result.req.to), travelmode: "driving" });
+  const ord = stopOrder(route);
+  if (ord.length) q.set("waypoints", ord.map(i => enc(result.req.stops[i])).join("|"));
+  if (result.req.tolls) q.set("avoid", "tolls");
+  return "https://www.google.com/maps/dir/?" + q.toString();
+}
+function render() { renderSummary(); renderSteps(); drawRoutes(); }
+function renderSummary() {
+  const el = $("#summary");
+  if (!result) return;
+  const r = result.routes[selected], req = result.req;
+  const delay = Math.max(0, r.d - r.s), ratio = r.s ? r.d / r.s : 1, [cls, lab] = band(ratio);
+  const arrive = new Date(result.dep.getTime() + r.d * 1000);
+  const ord = stopOrder(r);
+  const names = [req.from.text, ...ord.map(i => req.stops[i].text), req.to.text].map(esc).join(" → ");
+  const leaveTxt = req.when === "later" ? `${ISTDAY.format(result.dep)} ${istClock(result.dep)}` : `now (${istClock(result.dep)})`;
+  const reordered = req.stops.length >= 2 && ord.some((v, i) => v !== i);
+  let compare = "";
+  if (result.routes.length > 1) {
+    compare = `<div class="compare">` + result.routes.map(x => {
+      const title = x.idx === result.fastest ? "Fastest" : `Option ${x.idx + 1}`;
+      const extra = x.idx === result.fastest ? "" : ` · +${dur(x.d - result.routes[result.fastest].d)}`;
+      return `<button class="opt ${x.idx === selected ? "active" : ""}" type="button" data-route="${x.idx}"><span class="k">${title}</span><span class="v">${dur(x.d)} · ${km(x.distanceMeters || 0)}</span><span class="s">${x.description ? "via " + esc(x.description) : "Google route"}${extra}</span></button>`;
+    }).join("") + `</div>`;
+  }
+  el.innerHTML = `
+    <div class="sum-top">
+      <div style="display:grid;gap:6px;min-width:0">
+        <div class="trip-name">${names}</div>
+        <div class="meta">${km(r.distanceMeters || 0)} · leave ${leaveTxt} · arrive ${istClock(arrive)}${r.description ? " · via " + esc(r.description) : ""}</div>
+      </div>
+      <div class="eta">${etaHTML(r.d)}</div>
+    </div>
+    <div class="chips">
+      <span class="chip"><i style="background:var(--${cls})"></i>${lab} traffic</span>
+      <span class="chip">${delay >= 60 ? "Traffic adds " + dur(delay) + " over empty roads" : "Roads are close to clear"}</span>
+      <span class="chip">${req.when === "later" ? "Predicted traffic" : "Live traffic · checked " + istClock(result.at)}</span>
+      ${req.veh === "TWO_WHEELER" ? `<span class="chip">Two-wheeler routing</span>` : ""}
+      ${req.stops.length >= 2 && req.optimise ? `<span class="chip"><i style="background:var(--good)"></i>${reordered ? "Stops reordered for the fastest trip" : "Your stop order is already the fastest"}</span>` : ""}
+    </div>
+    ${compare}
+    <div class="actions"><a class="link-btn" href="${esc(gmapsURL(r))}" target="_blank" rel="noopener">Open in Google Maps ↗</a><span class="note">Opens the same stops in the Google Maps app for turn-by-turn.</span></div>`;
+  el.querySelectorAll("[data-route]").forEach(b => b.addEventListener("click", () => { selected = +b.dataset.route; render(); }));
+}
+function renderSteps() {
+  const el = $("#steps"), r = result.routes[selected];
+  const ord = stopOrder(r);
+  let h = "";
+  (r.legs || []).forEach((leg, li) => {
+    (leg.steps || []).forEach(st => {
+      const ins = st.navigationInstruction?.instructions;
+      if (!ins) return;
+      h += `<li><div>${esc(ins)}</div><div class="num">${km(st.distanceMeters || 0)}</div></li>`;
+    });
+    if (li < r.legs.length - 1) h += `<li class="stopline"><div>Stop ${li + 1}: ${esc(result.req.stops[ord[li]].text)} · leg ${dur(secs(leg.duration))}</div></li>`;
+  });
+  el.innerHTML = h || `<li><div class="empty">Google returned no step-by-step instructions for this route.</div></li>`;
+  $("#dirNote").textContent = `${km(r.distanceMeters || 0)} · ${dur(r.d)}`;
+}
+function clearOverlays() { overlays.forEach(o => o.setMap(null)); overlays = []; }
+function drawRoutes() {
+  if (!map || !result || !window.google) return;
+  clearOverlays();
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#6a3d9a";
+  const bounds = new google.maps.LatLngBounds();
+  result.routes.forEach(r => {
+    if (r.idx === selected || !r.polyline) return;
+    const path = decode(r.polyline.encodedPolyline);
+    const line = new google.maps.Polyline({ map, path, strokeColor: "#9aa0a6", strokeOpacity: 0.9, strokeWeight: 6, zIndex: 1, clickable: true });
+    line.addListener("click", () => { selected = r.idx; render(); });
+    overlays.push(line);
+  });
+  const r = result.routes[selected];
+  if (r.polyline) {
+    const path = decode(r.polyline.encodedPolyline);
+    path.forEach(p => bounds.extend(p));
+    overlays.push(new google.maps.Polyline({ map, path, strokeColor: "#ffffff", strokeOpacity: 1, strokeWeight: 10, zIndex: 2, clickable: false }));
+    overlays.push(new google.maps.Polyline({ map, path, strokeColor: accent, strokeOpacity: 1, strokeWeight: 6, zIndex: 3, clickable: false }));
+    (r.travelAdvisory?.speedReadingIntervals || []).forEach(iv => {
+      if (iv.speed !== "SLOW" && iv.speed !== "TRAFFIC_JAM") return;
+      const a = iv.startPolylinePointIndex || 0, b = iv.endPolylinePointIndex ?? path.length - 1;
+      overlays.push(new google.maps.Polyline({ map, path: path.slice(a, b + 1), strokeColor: iv.speed === "SLOW" ? "#e8a219" : "#d93025", strokeOpacity: 1, strokeWeight: 6, zIndex: 4, clickable: false }));
+    });
+  }
+  const legs = r.legs || [], ord = stopOrder(r);
+  const marker = (loc, label, title) => {
+    if (!loc?.latLng) return;
+    const pos = { lat: loc.latLng.latitude, lng: loc.latLng.longitude };
+    bounds.extend(pos);
+    overlays.push(new google.maps.Marker({ map, position: pos, title, zIndex: 10, label: { text: label, color: "#ffffff", fontWeight: "600", fontSize: "12px" },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 11, fillColor: accent, fillOpacity: 1, strokeColor: "#ffffff", strokeWeight: 2 } }));
+  };
+  if (legs.length) {
+    marker(legs[0].startLocation, "A", result.req.from.text);
+    legs.slice(0, -1).forEach((l, i) => marker(l.endLocation, String(i + 1), result.req.stops[ord[i]]?.text || "Stop"));
+    marker(legs[legs.length - 1].endLocation, "B", result.req.to.text);
+  }
+  if (!bounds.isEmpty()) map.fitBounds(bounds, 48);
+}
+
+// ---------- departure scan ----------
+$("#scan").addEventListener("click", async () => {
+  if (!result) return;
+  const req = JSON.parse(JSON.stringify(result.req));
+  // Keep the stop order Google chose so each slot compares the same trip.
+  const ord = stopOrder(result.routes[result.fastest]);
+  req.stops = ord.map(i => req.stops[i]); req.optimise = false;
+  const base = req.when === "later" ? fromIST(req.date, req.time || "09:00") : new Date();
+  const start = new Date(Math.max(base.getTime(), Date.now()));
+  start.setSeconds(0, 0);
+  const slots = Array.from({ length: 7 }, (_, i) => new Date(start.getTime() + i * 30 * 60 * 1000));
+  $("#scan").disabled = true; $("#scanNote").textContent = "Checking…";
+  const out = new Array(slots.length).fill(null);
+  let failed = null;
+  await Promise.all(slots.map(async (t, i) => {
+    await new Promise(r => setTimeout(r, i * 120));
+    try {
+      const j = await routesWithFallback(req, i === 0 && req.when === "now" ? null : t, { full: false, alternatives: false, optimise: false }, MASK_LITE);
+      const r0 = j.routes?.[0];
+      out[i] = r0 ? secs(r0.duration) : null;
+    } catch (e) { failed = e; }
+    renderChart(slots, out);
+  }));
+  $("#scan").disabled = false;
+  if (failed && out.every(v => v == null)) { $("#scanNote").innerHTML = `<span class="err">${esc(friendly(failed))}</span>`; return; }
+  renderChart(slots, out, true);
+});
+function renderChart(slots, vals, done = false) {
+  const el = $("#chart"), W = 640, H = 220, L = 44, Rt = 12, T = 18, B = 34;
+  const have = vals.filter(v => v != null);
+  el.hidden = !have.length;
+  if (!have.length) { el.innerHTML = ""; return; }
+  const mn = Math.min(...have), mx = Math.max(...have);
+  const maxMin = mx / 60, step = maxMin > 150 ? 60 : maxMin > 75 ? 30 : maxMin > 30 ? 15 : 10, top = Math.ceil(maxMin / step) * step || step;
+  const y = m => T + (H - T - B) * (1 - m / top);
+  const bw = (W - L - Rt) / slots.length;
+  let bi = -1; vals.forEach((v, i) => { if (v != null && (bi < 0 || v < vals[bi] - 30)) bi = i; });
+  let h = "";
+  for (let v = 0; v <= top; v += step) h += `<line x1="${L}" x2="${W - Rt}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${v}</text>`;
+  h += `<text x="${L - 8}" y="${T - 6}" text-anchor="end" font-size="10" fill="var(--muted)">min</text>`;
+  vals.forEach((v, i) => {
+    const x = L + i * bw;
+    h += `<text x="${x + bw / 2}" y="${H - 12}" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${istClock(slots[i])}</text>`;
+    if (v == null) return;
+    const r = v / mn, c = r < 1.08 ? "good" : r < 1.25 ? "warn" : r < 1.5 ? "bad" : "worst";
+    const yy = y(v / 60);
+    h += `<g class="bar" data-i="${i}"><rect x="${x + 6}" y="${yy}" width="${bw - 12}" height="${H - B - yy}" rx="3" fill="var(--${c})" opacity="${i === bi ? 1 : 0.7}"${i === bi ? ` stroke="var(--ink)" stroke-width="1.5"` : ""}/><text x="${x + bw / 2}" y="${yy - 6}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ink)">${Math.round(v / 60)}</text><title>Leave ${istClock(slots[i])}: ${dur(v)}</title></g>`;
+  });
+  el.innerHTML = h;
+  el.querySelectorAll(".bar").forEach(g => g.addEventListener("click", () => useSlot(slots[+g.dataset.i])));
+  if (done && bi >= 0) {
+    const first = vals[0] != null ? vals[0] : null;
+    const saving = first != null ? first - vals[bi] : 0;
+    $("#scanNote").textContent = bi === 0 || saving < 120 ? `Leaving at ${istClock(slots[0])} is as good as it gets` : `Best: leave at ${istClock(slots[bi])} (${dur(vals[bi])}), saves ${dur(saving)}`;
+    $("#scanHint").textContent = "Tap a bar to plan the trip for that departure.";
+  }
+}
+function useSlot(t) {
+  Object.assign(state, istParts(t), { when: t.getTime() > Date.now() + 2 * 60 * 1000 ? "later" : "now" });
+  saveState(); syncForm();
+  $("#tripForm").requestSubmit();
+}
+
+syncForm(); showKeyUI();
+if (apiKey) loadMaps();
+})();
+</script>
+</body>
+</html>

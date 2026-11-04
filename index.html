@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Namma Route</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a control rail on the left, the working surface (summary, map, departure chart, directions) on the right; stacks on phones. */
+:root {
+  --bg: #eef0ec;
+  --surface: #ffffff;
+  --sunk: #f6f7f4;
+  --ink: #1a2026;
+  --muted: #5b646c;
+  --line: #d8dcd4;
+  --accent: #6a3d9a;          /* jacaranda */
+  --accent-soft: #efe7f8;
+  --accent-ink: #ffffff;
+  --road: #c3c8c0;
+  --water: #cddfe9;
+  --park: #d8e6cc;
+  --map: #f8f9f6;
+  --good: #2c8548;
+  --warn: #c3860c;
+  --bad: #c8432b;
+  --worst: #8a1d22;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111519; --surface: #192027; --sunk: #141a20; --ink: #e6e9e5; --muted: #9aa3ab; --line: #2a333b;
+    --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
+    --road: #3a444d; --water: #1b3140; --park: #1d3022; --map: #151b21;
+    --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111519; --surface: #192027; --sunk: #141a20; --ink: #e6e9e5; --muted: #9aa3ab; --line: #2a333b;
+  --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
+  --road: #3a444d; --water: #1b3140; --park: #1d3022; --map: #151b21;
+  --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.app { max-width: 1320px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: -0.02em; margin: 0; line-height: 1.1; }
+h1 span { color: var(--accent); }
+.tag { color: var(--muted); margin: 0; }
+.kn { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.layout { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.rail { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 20px; }
+.group { display: grid; gap: 10px; }
+.label { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.field { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.pin { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  background: var(--accent); color: var(--accent-ink); }
+.pin.stop { background: var(--surface); color: var(--accent); border: 2px solid var(--accent); }
+select, input[type="number"] {
+  width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px;
+}
+select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { font: inherit; cursor: pointer; }
+.icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
+.icon-btn:hover { color: var(--ink); border-color: var(--muted); }
+.ghost { border: 1px dashed var(--line); background: transparent; color: var(--accent); border-radius: 9px; padding: 7px 10px; font-weight: 500; text-align: left; }
+.ghost:hover { border-color: var(--accent); }
+.ghost:disabled { opacity: .45; cursor: not-allowed; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: flex; flex-wrap: wrap; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg label { flex: 1 1 auto; text-align: center; position: relative; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 6px 8px; border-radius: 7px; font-weight: 500; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); }
+.days span { padding: 6px 0; min-width: 34px; }
+.time-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.clock { font-family: var(--font-mono); font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; margin-top: 2px; flex: none; }
+.check small { display: block; color: var(--muted); }
+.pill-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 500; }
+.pill-btn:hover { border-color: var(--accent); color: var(--accent); }
+.dwell { display: grid; grid-template-columns: minmax(0,1fr) 84px; gap: 8px; align-items: center; color: var(--muted); }
+
+.work { display: grid; gap: 18px; min-width: 0; }
+.summary { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: grid; gap: 14px; }
+.sum-top { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: flex-end; justify-content: space-between; }
+.eta { font-family: var(--font-display); font-weight: 700; font-size: 46px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.eta small { font-size: 20px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.trip-name { font-weight: 600; font-size: 16px; text-wrap: balance; }
+.meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--line); background: var(--sunk); }
+.chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.callout { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; background: var(--accent-soft); border-radius: 11px; padding: 12px 14px; }
+.callout .big { font-family: var(--font-mono); font-size: 18px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.callout p { margin: 0; }
+@media (max-width: 520px) { .callout { grid-template-columns: minmax(0,1fr); } }
+.compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.opt { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; display: grid; gap: 2px; background: var(--surface); text-align: left; color: var(--ink); }
+.opt.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.opt .v { font-family: var(--font-mono); font-size: 16px; font-variant-numeric: tabular-nums; }
+.opt .s { color: var(--muted); font-size: 12.5px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.link-btn { display: inline-flex; gap: 6px; align-items: center; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 8px 14px; border-radius: 9px; font-weight: 600; }
+.link-btn:hover { filter: brightness(1.08); }
+.note { color: var(--muted); font-size: 12.5px; }
+
+.mapwrap { position: relative; height: clamp(360px, 62vh, 640px); background: var(--map); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; touch-action: none; }
+#map { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
+#map.dragging { cursor: grabbing; }
+.map-tools { position: absolute; top: 10px; right: 10px; display: grid; gap: 6px; }
+.map-tools .icon-btn { background: var(--surface); width: 34px; height: 34px; font-size: 17px; color: var(--ink); }
+.legend { position: absolute; left: 10px; bottom: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; font-size: 12px; max-width: calc(100% - 20px); }
+.legend .row { gap: 10px; }
+.legend b { font-weight: 600; }
+.sw { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.sw i { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
+.tapmode { position: absolute; left: 10px; top: 10px; }
+.tapmode .seg { background: var(--surface); }
+.tapmode .seg span { padding: 5px 9px; font-size: 12.5px; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 12px; min-width: 0; }
+h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.chart-scroll { overflow-x: auto; }
+#chart { width: 100%; min-width: 520px; height: auto; display: block; }
+#chart .bar { cursor: pointer; }
+#chart .bar:hover { opacity: .8; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; }
+.steps li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); align-items: start; }
+.steps li:first-child { border-top: 0; }
+.steps .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
+.steps .road { font-weight: 600; }
+.steps .via { color: var(--muted); font-size: 12.5px; }
+.steps .num { font-family: var(--font-mono); font-size: 12.5px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.steps .num b { color: var(--ink); font-weight: 500; }
+.steps li.stopline { grid-template-columns: 16px minmax(0,1fr); color: var(--accent); font-weight: 600; }
+.steps li.stopline .dot { background: var(--accent); }
+footer { color: var(--muted); font-size: 12.5px; max-width: 80ch; }
+footer p { margin: 0 0 6px; }
+.empty { color: var(--muted); padding: 20px 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .route-line { stroke-dasharray: 2400; stroke-dashoffset: 2400; animation: draw 900ms ease-out forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>Namma <span>Route</span></h1>
+      <p class="tag">Find the quickest way across Bengaluru, and the best time to leave.</p>
+    </div>
+    <div class="kn">ಬೆಂಗಳೂರು · typical-traffic model</div>
+  </header>
+
+  <div class="layout">
+    <aside class="rail" aria-label="Trip settings">
+      <div class="group">
+        <div class="label">Trip</div>
+        <div class="field"><span class="pin" aria-hidden="true">A</span><select id="from" aria-label="Start"></select><button class="icon-btn" id="swap" title="Swap start and destination" aria-label="Swap start and destination">⇅</button></div>
+        <div id="stops" class="group"></div>
+        <div class="field"><span class="pin" aria-hidden="true">B</span><select id="to" aria-label="Destination"></select><span></span></div>
+        <button class="ghost" id="addStop" type="button">+ Add a stop on the way</button>
+        <div id="stopOpts" class="group" hidden>
+          <label class="check"><input type="checkbox" id="optimise" checked><span>Find the fastest stop order<small>Start and destination stay fixed.</small></span></label>
+          <label class="dwell" for="dwell">Minutes spent at each stop <input type="number" id="dwell" min="0" max="240" step="5" value="10"></label>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="row" style="justify-content:space-between"><span class="label">Leave at</span><button class="pill-btn" id="now" type="button">Now (IST)</button></div>
+        <div class="seg days" id="days" role="radiogroup" aria-label="Day of week"></div>
+        <div class="time-row">
+          <input type="range" id="slot" min="0" max="95" step="1" value="36" aria-label="Departure time">
+          <div class="clock" id="clock">09:00</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="label">Vehicle</div>
+        <div class="seg" role="radiogroup" aria-label="Vehicle">
+          <label><input type="radio" name="veh" value="car" checked><span>Car / cab</span></label>
+          <label><input type="radio" name="veh" value="bike"><span>Two-wheeler</span></label>
+        </div>
+        <label class="check"><input type="checkbox" id="tolls"><span>Avoid tolls<small>Skips the Electronic City Elevated Expressway and the NH 44 airport toll.</small></span></label>
+        <label class="check"><input type="checkbox" id="rain"><span>It's raining<small>Slower everywhere, much slower at underpasses that flood (Silk Board, Bellandur, Hebbal, KR Puram).</small></span></label>
+      </div>
+    </aside>
+
+    <main class="work">
+      <section class="summary" id="summary" aria-live="polite"></section>
+
+      <div class="mapwrap">
+        <svg id="map" role="img" aria-label="Map of Bengaluru's main roads with the suggested route"></svg>
+        <div class="tapmode">
+          <div class="seg" role="radiogroup" aria-label="Tapping a junction sets">
+            <label><input type="radio" name="tap" value="from" checked><span>Tap sets A</span></label>
+            <label><input type="radio" name="tap" value="to"><span>B</span></label>
+            <label><input type="radio" name="tap" value="stop"><span>Stop</span></label>
+          </div>
+        </div>
+        <div class="map-tools">
+          <button class="icon-btn" id="zin" aria-label="Zoom in">+</button>
+          <button class="icon-btn" id="zout" aria-label="Zoom out">−</button>
+          <button class="icon-btn" id="zfit" aria-label="Fit route" title="Fit route">⤢</button>
+          <button class="icon-btn" id="zall" aria-label="Show whole city" title="Whole city">◎</button>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div class="lower">
+        <section class="card">
+          <div class="card-head"><h2>When should you leave?</h2><span class="note" id="chartNote"></span></div>
+          <div class="chart-scroll"><svg id="chart" viewBox="0 0 720 230" role="img" aria-label="Trip time by departure time"></svg></div>
+          <div class="note">Each bar is the trip time if you leave at that 15-minute slot. Tap a bar to plan for that time.</div>
+        </section>
+        <section class="card">
+          <div class="card-head"><h2>Directions</h2><span class="note" id="dirNote"></span></div>
+          <ol class="steps" id="steps"></ol>
+        </section>
+      </div>
+
+      <footer>
+        <p>Routes run on a simplified network of about 80 junctions and the arterial roads between them (ORR, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd and others). Positions are approximate and road lengths are estimated.</p>
+        <p>Travel times come from a typical-day congestion model, not live traffic: morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks. Use it to compare routes and departure times, then open the trip in Google Maps for turn-by-turn and today's conditions.</p>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ---------- Network ----------
+// id, name, lat, lon, area, major-label
+const RAW_NODES = [
+  ["majestic","Majestic (Kempegowda Bus Stn)",12.9767,77.5713,"Central",1],
+  ["krmarket","KR Market",12.9634,77.5770,"Central",0],
+  ["townhall","Town Hall",12.9640,77.5855,"Central",0],
+  ["hudson","Hudson Circle",12.9690,77.5885,"Central",0],
+  ["vsoudha","Vidhana Soudha",12.9797,77.5907,"Central",0],
+  ["mgroad","MG Road",12.9755,77.6060,"Central",1],
+  ["richmond","Richmond Circle",12.9615,77.5975,"Central",0],
+  ["shanti","Shanti Nagar",12.9550,77.6000,"Central",0],
+  ["shivaji","Shivajinagar",12.9857,77.6050,"Central",0],
+  ["cantt","Cantonment",12.9935,77.5985,"Central",0],
+  ["trinity","Trinity Circle",12.9727,77.6180,"Central",0],
+  ["ulsoor","Ulsoor",12.9815,77.6210,"Central",0],
+  ["frazer","Frazer Town",12.9990,77.6135,"Central",0],
+  ["lalbagh","Lalbagh",12.9507,77.5848,"Central",0],
+  ["basavanagudi","Basavanagudi",12.9420,77.5735,"South",0],
+  ["southend","South End Circle",12.9370,77.5800,"South",0],
+  ["jayanagar","Jayanagar 4th Block",12.9290,77.5830,"South",1],
+  ["dairy","Dairy Circle",12.9385,77.6005,"South",0],
+  ["forum","Koramangala (Forum)",12.9346,77.6111,"South",0],
+  ["sonyworld","Koramangala (Sony World)",12.9365,77.6265,"South",1],
+  ["madiwala","Madiwala",12.9220,77.6180,"South",0],
+  ["silkboard","Silk Board Junction",12.9177,77.6233,"South",1],
+  ["btm","BTM Layout",12.9160,77.6100,"South",0],
+  ["jayadeva","Jayadeva Hospital",12.9180,77.5995,"South",0],
+  ["jpnagar","JP Nagar",12.9090,77.5850,"South",0],
+  ["banashankari","Banashankari",12.9180,77.5735,"South",1],
+  ["hosakere","Hosakerehalli",12.9290,77.5400,"South",0],
+  ["konanakunte","Konanakunte (Kanakapura Rd)",12.8870,77.5630,"South",0],
+  ["arekere","Arekere (Bannerghatta Rd)",12.8880,77.5970,"South",0],
+  ["bommanahalli","Bommanahalli",12.9030,77.6240,"South",0],
+  ["hosaroad","Hosa Road",12.8800,77.6450,"South",0],
+  ["ecity","Electronic City",12.8452,77.6602,"South",1],
+  ["hsr","HSR Layout",12.9115,77.6440,"South",1],
+  ["agara","Agara",12.9240,77.6485,"South",0],
+  ["indiranagar","Indiranagar",12.9784,77.6408,"East",1],
+  ["byappanahalli","Byappanahalli (Old Madras Rd)",12.9910,77.6460,"East",0],
+  ["domlur","Domlur",12.9610,77.6387,"East",0],
+  ["hal","HAL (Old Airport Rd)",12.9590,77.6600,"East",0],
+  ["tinfactory","Tin Factory",12.9969,77.6696,"East",0],
+  ["krpuram","KR Puram",13.0040,77.6810,"East",1],
+  ["mahadevapura","Mahadevapura",12.9930,77.6960,"East",0],
+  ["marathahalli","Marathahalli",12.9560,77.7010,"East",1],
+  ["kundalahalli","Kundalahalli Gate",12.9670,77.7150,"East",0],
+  ["hoodi","Hoodi",12.9920,77.7160,"East",0],
+  ["itpl","Whitefield (ITPL)",12.9866,77.7366,"East",1],
+  ["hopefarm","Hope Farm",12.9845,77.7520,"East",0],
+  ["varthur","Varthur",12.9400,77.7470,"East",0],
+  ["kadubeesanahalli","Kadubeesanahalli",12.9385,77.6950,"East",0],
+  ["bellandur","Bellandur (Ecospace)",12.9280,77.6800,"East",1],
+  ["iblur","Iblur (Sarjapur Rd)",12.9225,77.6640,"East",0],
+  ["wipro","Doddakannelli (Sarjapur Rd)",12.9100,77.6860,"East",0],
+  ["carmelaram","Carmelaram",12.9070,77.7060,"East",0],
+  ["mekhri","Mekhri Circle",13.0145,77.5838,"North",0],
+  ["hebbal","Hebbal Flyover",13.0358,77.5970,"North",1],
+  ["belcircle","BEL Circle",13.0440,77.5600,"North",0],
+  ["nagawara","Nagawara",13.0420,77.6230,"North",0],
+  ["manyata","Manyata Tech Park",13.0475,77.6215,"North",1],
+  ["thanisandra","Thanisandra",13.0560,77.6330,"North",0],
+  ["hennur","Hennur Cross",13.0300,77.6420,"North",0],
+  ["kothanur","Kothanur",13.0650,77.6450,"North",0],
+  ["ramamurthy","Ramamurthy Nagar",13.0160,77.6660,"North",0],
+  ["jakkur","Jakkur",13.0760,77.6050,"North",0],
+  ["yelahanka","Yelahanka",13.1000,77.6000,"North",1],
+  ["bagalur","Bagalur",13.1340,77.6680,"North",0],
+  ["sadahalli","Sadahalli Gate",13.1650,77.6400,"North",0],
+  ["kia","Kempegowda Airport (KIA)",13.1986,77.7066,"North",1],
+  ["malleshwaram","Malleshwaram",13.0035,77.5710,"West",1],
+  ["rajajinagar","Rajajinagar",12.9910,77.5530,"West",0],
+  ["yeshwanthpur","Yeshwanthpur",13.0237,77.5500,"West",1],
+  ["goragunte","Goraguntepalya",13.0285,77.5400,"West",0],
+  ["peenya","Peenya",13.0390,77.5180,"West",1],
+  ["eighthmile","8th Mile (Tumkur Rd)",13.0500,77.4980,"West",0],
+  ["vijayanagar","Vijayanagar",12.9710,77.5340,"West",0],
+  ["tollgate","Magadi Rd Toll Gate",12.9760,77.5530,"West",0],
+  ["sirsi","Sirsi Circle (Mysore Rd)",12.9600,77.5590,"West",0],
+  ["nayandahalli","Nayandahalli",12.9450,77.5240,"West",0],
+  ["nagarbhavi","Nagarbhavi",12.9610,77.5110,"West",0],
+  ["sumanahalli","Sumanahalli",12.9880,77.5045,"West",0],
+  ["rrnagar","RR Nagar",12.9270,77.5150,"West",1],
+  ["kengeri","Kengeri",12.9080,77.4850,"West",1],
+];
+// a, b, class, bottleneck severity (0-1), road name, flags (t = toll, f = floods in rain)
+const RAW_EDGES = [
+  ["majestic","krmarket","city",.5,"Avenue Rd"],
+  ["majestic","vsoudha","main",.35,"Seshadri Rd"],
+  ["majestic","malleshwaram","main",.45,"Sampige Rd"],
+  ["majestic","tollgate","main",.5,"Magadi Rd"],
+  ["krmarket","sirsi","main",.6,"Mysore Rd"],
+  ["krmarket","townhall","city",.6,"SJP Rd"],
+  ["krmarket","basavanagudi","main",.45,"KR Rd"],
+  ["townhall","hudson","city",.4,"NR Rd"],
+  ["townhall","lalbagh","main",.45,"Lalbagh Rd"],
+  ["townhall","richmond","main",.45,"JC Rd"],
+  ["hudson","vsoudha","city",.3,"Ambedkar Veedhi"],
+  ["hudson","richmond","main",.35,"Kasturba Rd"],
+  ["vsoudha","mgroad","main",.35,"Cubbon Rd"],
+  ["vsoudha","mekhri","main",.45,"Raj Bhavan Rd"],
+  ["vsoudha","cantt","main",.35,"Queens Rd"],
+  ["mgroad","trinity","main",.45,"MG Rd"],
+  ["mgroad","shivaji","city",.5,"Dickenson Rd"],
+  ["mgroad","richmond","main",.45,"Residency Rd"],
+  ["shivaji","cantt","city",.5,"Infantry Rd"],
+  ["shivaji","frazer","city",.5,"Mosque Rd"],
+  ["cantt","mekhri","main",.45,"Jayamahal Rd"],
+  ["cantt","frazer","city",.4,"Millers Rd"],
+  ["trinity","ulsoor","city",.3,"Ulsoor Rd"],
+  ["trinity","domlur","arterial",.6,"Old Airport Rd"],
+  ["ulsoor","indiranagar","main",.5,"CMH Rd"],
+  ["ulsoor","byappanahalli","arterial",.55,"Old Madras Rd"],
+  ["richmond","shanti","main",.45,"KH Rd"],
+  ["shanti","dairy","arterial",.55,"Hosur Rd"],
+  ["shanti","forum","arterial",.7,"Hosur Rd"],
+  ["dairy","forum","city",.4,"Adugodi Rd"],
+  ["dairy","jayadeva","arterial",.75,"Bannerghatta Rd"],
+  ["lalbagh","shanti","city",.4,"Lalbagh Double Rd"],
+  ["lalbagh","southend","main",.45,"RV Rd"],
+  ["basavanagudi","southend","city",.35,"Bull Temple Rd"],
+  ["basavanagudi","banashankari","main",.5,"KR Rd"],
+  ["southend","jayanagar","main",.5,"Jayanagar Main Rd"],
+  ["southend","dairy","city",.4,"Siddapura Rd"],
+  ["jayanagar","jayadeva","main",.6,"East End Rd"],
+  ["jayanagar","banashankari","main",.45,"Kanakapura Rd"],
+  ["jayanagar","jpnagar","main",.45,"JP Nagar Main Rd"],
+  ["forum","sonyworld","main",.6,"Koramangala 80 Ft Rd"],
+  ["forum","madiwala","arterial",.75,"Hosur Rd"],
+  ["madiwala","silkboard","arterial",.9,"Hosur Rd","f"],
+  ["btm","madiwala","city",.5,"BTM Main Rd"],
+  ["sonyworld","domlur","main",.6,"Intermediate Ring Rd"],
+  ["sonyworld","agara","main",.6,"Sarjapur Rd"],
+  ["silkboard","btm","arterial",.9,"Outer Ring Rd"],
+  ["btm","jayadeva","arterial",.75,"Outer Ring Rd"],
+  ["jayadeva","jpnagar","arterial",.6,"Outer Ring Rd"],
+  ["jpnagar","banashankari","arterial",.5,"Outer Ring Rd"],
+  ["banashankari","hosakere","arterial",.5,"Outer Ring Rd"],
+  ["hosakere","nayandahalli","arterial",.55,"Outer Ring Rd"],
+  ["nayandahalli","nagarbhavi","arterial",.5,"Outer Ring Rd"],
+  ["nagarbhavi","sumanahalli","arterial",.5,"Outer Ring Rd"],
+  ["sumanahalli","goragunte","arterial",.6,"Outer Ring Rd"],
+  ["goragunte","belcircle","arterial",.6,"Outer Ring Rd"],
+  ["belcircle","hebbal","arterial",.7,"Outer Ring Rd"],
+  ["hebbal","nagawara","arterial",.8,"Outer Ring Rd","f"],
+  ["nagawara","hennur","arterial",.75,"Outer Ring Rd"],
+  ["hennur","ramamurthy","arterial",.7,"Outer Ring Rd"],
+  ["ramamurthy","krpuram","arterial",.7,"Outer Ring Rd"],
+  ["krpuram","mahadevapura","arterial",.8,"Outer Ring Rd"],
+  ["mahadevapura","marathahalli","arterial",.85,"Outer Ring Rd"],
+  ["marathahalli","kadubeesanahalli","arterial",.9,"Outer Ring Rd"],
+  ["kadubeesanahalli","bellandur","arterial",.9,"Outer Ring Rd","f"],
+  ["bellandur","iblur","arterial",.9,"Outer Ring Rd","f"],
+  ["iblur","agara","arterial",.8,"Outer Ring Rd"],
+  ["agara","hsr","arterial",.7,"Outer Ring Rd"],
+  ["hsr","silkboard","arterial",.9,"Outer Ring Rd","f"],
+  ["hsr","bommanahalli","city",.5,"Kudlu Gate Rd"],
+  ["silkboard","bommanahalli","arterial",.8,"Hosur Rd"],
+  ["bommanahalli","hosaroad","arterial",.7,"Hosur Rd"],
+  ["hosaroad","ecity","arterial",.65,"Hosur Rd"],
+  ["silkboard","ecity","xway",.15,"Electronic City Elevated Expressway","t"],
+  ["jayadeva","arekere","arterial",.75,"Bannerghatta Rd"],
+  ["arekere","bommanahalli","city",.5,"Hulimavu–Begur Rd"],
+  ["jpnagar","arekere","city",.45,"Puttenahalli Main Rd"],
+  ["banashankari","konanakunte","arterial",.6,"Kanakapura Rd"],
+  ["iblur","wipro","arterial",.75,"Sarjapur Rd"],
+  ["wipro","carmelaram","arterial",.6,"Sarjapur Rd"],
+  ["bellandur","wipro","city",.55,"Haralur Rd"],
+  ["carmelaram","varthur","city",.4,"Gunjur Rd"],
+  ["kadubeesanahalli","varthur","city",.55,"Panathur Rd"],
+  ["marathahalli","kundalahalli","arterial",.8,"ITPL Main Rd"],
+  ["kundalahalli","itpl","main",.6,"ITPL Main Rd"],
+  ["marathahalli","varthur","arterial",.7,"Varthur Rd"],
+  ["varthur","hopefarm","main",.6,"Varthur–Whitefield Rd"],
+  ["mahadevapura","hoodi","arterial",.7,"Whitefield Main Rd"],
+  ["hoodi","itpl","arterial",.7,"Whitefield Main Rd"],
+  ["itpl","hopefarm","main",.6,"Whitefield Main Rd"],
+  ["krpuram","tinfactory","arterial",.95,"Old Madras Rd","f"],
+  ["tinfactory","byappanahalli","arterial",.75,"Old Madras Rd"],
+  ["indiranagar","byappanahalli","main",.5,"100 Ft Rd"],
+  ["indiranagar","domlur","main",.6,"100 Ft Rd"],
+  ["domlur","hal","arterial",.7,"Old Airport Rd"],
+  ["hal","marathahalli","arterial",.8,"Old Airport Rd"],
+  ["mekhri","hebbal","arterial",.7,"Bellary Rd"],
+  ["mekhri","malleshwaram","main",.45,"Sankey Rd"],
+  ["mekhri","belcircle","main",.5,"New BEL Rd"],
+  ["malleshwaram","yeshwanthpur","main",.5,"Malleshwaram Main Rd"],
+  ["malleshwaram","rajajinagar","main",.45,"Rajajinagar Main Rd"],
+  ["yeshwanthpur","goragunte","arterial",.7,"Tumkur Rd"],
+  ["yeshwanthpur","rajajinagar","main",.5,"Dr Rajkumar Rd"],
+  ["goragunte","peenya","arterial",.6,"Tumkur Rd"],
+  ["peenya","eighthmile","arterial",.5,"Tumkur Rd"],
+  ["yeshwanthpur","belcircle","main",.45,"Mathikere Rd"],
+  ["rajajinagar","vijayanagar","main",.5,"Chord Rd"],
+  ["rajajinagar","tollgate","city",.4,"West of Chord Rd"],
+  ["tollgate","vijayanagar","city",.4,"Vijayanagar Main Rd"],
+  ["tollgate","sumanahalli","arterial",.5,"Magadi Rd"],
+  ["vijayanagar","nagarbhavi","main",.45,"Chandra Layout Rd"],
+  ["vijayanagar","sirsi","city",.45,"Hosahalli Rd"],
+  ["sirsi","nayandahalli","arterial",.6,"Mysore Rd"],
+  ["nayandahalli","rrnagar","arterial",.5,"Mysore Rd"],
+  ["rrnagar","kengeri","arterial",.4,"Mysore Rd"],
+  ["hebbal","jakkur","xway",.5,"Bellary Rd (NH 44)"],
+  ["jakkur","yelahanka","xway",.4,"Bellary Rd (NH 44)"],
+  ["yelahanka","sadahalli","xway",.2,"Bellary Rd (NH 44)"],
+  ["sadahalli","kia","xway",.1,"Airport Rd","t"],
+  ["nagawara","manyata","city",.65,"Manyata Tech Park Rd"],
+  ["manyata","thanisandra","main",.6,"Thanisandra Main Rd"],
+  ["thanisandra","jakkur","city",.4,"Sampigehalli Rd"],
+  ["thanisandra","kothanur","main",.5,"Hegde Nagar Rd"],
+  ["hennur","kothanur","main",.6,"Hennur Rd"],
+  ["kothanur","bagalur","main",.45,"Hennur–Bagalur Rd"],
+  ["bagalur","kia","main",.3,"Bagalur–Airport Rd"],
+  ["frazer","hennur","main",.6,"Hennur Rd"],
+  ["frazer","ramamurthy","city",.5,"Banaswadi Main Rd"],
+];
+// Lakes and parks for orientation: lat, lon, rx km, ry km, rotation deg
+const LAKES = [[12.9350,77.6610,1.6,.55,-25],[12.9830,77.6205,.35,.3,0],[13.0455,77.5885,.5,.35,10],[12.9100,77.6150,.55,.4,0],[12.9230,77.6400,.35,.25,0],[12.9450,77.7330,.9,.4,-15],[13.0090,77.5740,.25,.18,0],[13.0950,77.5870,.6,.35,20]];
+const PARKS = [[12.9763,77.5929,.65,.5,30],[12.9507,77.5848,.5,.45,0]];
+
+const NODES = RAW_NODES.map(([id,name,lat,lon,area,major]) => ({id,name,lat,lon,area,major:!!major}));
+const IDX = Object.fromEntries(NODES.map((n,i) => [n.id, i]));
+const R = Math.PI / 180;
+function km(a, b) {
+  const dLat = (b.lat - a.lat) * R, dLon = (b.lon - a.lon) * R;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*R) * Math.cos(b.lat*R) * Math.sin(dLon/2)**2;
+  return 2 * 6371 * Math.asin(Math.sqrt(s));
+}
+const DETOUR = { xway: 1.12, arterial: 1.2, main: 1.25, city: 1.3 };
+const SPEED = { car: { xway: 70, arterial: 42, main: 33, city: 25 }, bike: { xway: 60, arterial: 42, main: 36, city: 29 } };
+const CONG = { car: 1.55, bike: 0.9 };
+const HUBS = ["mgroad","bellandur","itpl","ecity","manyata"].map(id => NODES[IDX[id]]);
+const hubDist = n => Math.min(...HUBS.map(h => km(n, h)));
+function tidal(from, to) { const d = hubDist(to) - hubDist(from); return d < -0.3 ? 1 : d > 0.3 ? -1 : 0; }
+
+const EDGES = RAW_EDGES.map(([a,b,cls,h,road,flags=""]) => {
+  const A = NODES[IDX[a]], B = NODES[IDX[b]];
+  if (!A || !B) throw new Error("Unknown node in edge " + a + "-" + b);
+  return { a: IDX[a], b: IDX[b], cls, h, road, toll: flags.includes("t"), flood: flags.includes("f"),
+    len: km(A, B) * DETOUR[cls], tidal: [tidal(A, B), tidal(B, A)] };
+});
+const ADJ = NODES.map(() => []);
+EDGES.forEach((e, i) => { ADJ[e.a].push({ e: i, to: e.b, dir: 0 }); ADJ[e.b].push({ e: i, to: e.a, dir: 1 }); });
+
+// ---------- Traffic model ----------
+const g = (x, mu, s) => Math.exp(-((x - mu) ** 2) / (2 * s * s));
+const sig = x => 1 / (1 + Math.exp(-x));
+// day: 0 = Mon ... 6 = Sun
+function level(h, day, tid) {
+  const act = sig((h - 6.8) * 2.2) * sig(-(h - 22.5) * 1.8);
+  if (day >= 5) return 0.36 * act + 0.28 * g(h, 11.2, 1.6) + 0.62 * g(h, 18.3, 2.1);
+  const amAmp = day === 0 ? 1.12 : 1.0;
+  const pmAmp = day === 4 ? 1.18 : 1.05, pmMu = day === 4 ? 19.1 : 18.9, pmS = day === 4 ? 1.6 : 1.45;
+  const fa = tid > 0 ? 1 : tid < 0 ? 0.5 : 0.75;
+  const fp = tid > 0 ? 0.5 : tid < 0 ? 1 : 0.75;
+  return 0.3 * act + amAmp * g(h, 9.6, 1.05) * fa + pmAmp * g(h, pmMu, pmS) * fp;
+}
+function edgeMult(E, dir, tMin, o) {
+  const day = (o.day + Math.floor(tMin / 1440)) % 7;
+  const h = ((tMin % 1440) + 1440) % 1440 / 60;
+  const lv = level(h, day, E.tidal[dir]);
+  let m = 1 + CONG[o.vehicle] * E.h * lv * (o.rain ? 1.3 : 1);
+  if (o.rain) { m *= 1.12; if (E.flood) m *= 1.15 + 0.5 * lv; }
+  return m;
+}
+const edgeTime = (E, dir, tMin, o) => E.len / SPEED[o.vehicle][E.cls] * 60 * edgeMult(E, dir, tMin, o);
+
+// Time-dependent Dijkstra (labels are clock minutes). metric "dist" ignores time.
+function route(src, dst, t0, o, metric = "time", penalty = null) {
+  if (src === dst) return [];
+  const n = NODES.length, best = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), pdir = new Int8Array(n), done = new Uint8Array(n);
+  best[src] = metric === "time" ? t0 : 0;
+  for (let k = 0; k < n; k++) {
+    let u = -1, bv = Infinity;
+    for (let i = 0; i < n; i++) if (!done[i] && best[i] < bv) { bv = best[i]; u = i; }
+    if (u < 0) break;
+    done[u] = 1;
+    if (u === dst) break;
+    for (const { e, to, dir } of ADJ[u]) {
+      if (done[to]) continue;
+      const E = EDGES[e];
+      if (o.avoidTolls && E.toll) continue;
+      let c = metric === "time" ? edgeTime(E, dir, best[u], o) : E.len;
+      if (penalty && penalty.has(e)) c *= 1.6;
+      if (best[u] + c < best[to]) { best[to] = best[u] + c; prev[to] = e; pdir[to] = dir; }
+    }
+  }
+  if (best[dst] === Infinity) return null;
+  const steps = [];
+  for (let v = dst; v !== src; ) { const e = prev[v], dir = pdir[v], E = EDGES[e], from = dir === 0 ? E.a : E.b; steps.push({ e, dir, from, to: v }); v = from; }
+  return steps.reverse();
+}
+function evalPath(steps, t0, o) {
+  let t = t0, dist = 0;
+  const out = steps.map(s => { const E = EDGES[s.e], tt = edgeTime(E, s.dir, t, o), r = { ...s, t0: t, t1: t + tt, km: E.len, mult: edgeMult(E, s.dir, t, o) }; t += tt; dist += E.len; return r; });
+  return { steps: out, depart: t0, arrive: t, minutes: t - t0, km: dist };
+}
+
+let cache = new Map(), cacheKey = "";
+function fastest(a, b, t, o) {
+  const key = a + "|" + b + "|" + Math.round(t / 3);
+  let r = cache.get(key);
+  if (!r) { const st = route(a, b, t, o); r = st ? evalPath(st, t, o) : null; cache.set(key, r); }
+  return r && r.depart === t ? r : (r ? evalPath(r.steps, t, o) : null);
+}
+function permutations(arr) {
+  if (arr.length <= 1) return [arr.slice()];
+  const out = [];
+  arr.forEach((x, i) => { for (const p of permutations([...arr.slice(0, i), ...arr.slice(i + 1)])) out.push([x, ...p]); });
+  return out;
+}
+function runOrder(seq, t0, o, dwell) {
+  let t = t0, km = 0; const legs = [];
+  for (let i = 0; i < seq.length - 1; i++) {
+    const r = fastest(seq[i], seq[i + 1], t, o);
+    if (!r) return null;
+    legs.push(r); km += r.km; t = r.arrive;
+    if (i < seq.length - 2) t += dwell;
+  }
+  return { legs, arrive: t, minutes: t - t0, km };
+}
+function plan(st, t0, fixedOrder = null) {
+  const o = opts(st);
+  const key = JSON.stringify([o.vehicle, o.avoidTolls, o.rain, o.day]);
+  if (key !== cacheKey) { cache = new Map(); cacheKey = key; }
+  const stops = st.stops.map(id => IDX[id]);
+  const from = IDX[st.from], to = IDX[st.to];
+  const asEntered = runOrder([from, ...stops, to], t0, o, st.dwell);
+  if (fixedOrder) return { ...runOrder([from, ...fixedOrder, to], t0, o, st.dwell), order: fixedOrder, asEntered };
+  let best = asEntered ? { ...asEntered, order: stops } : null;
+  if (st.optimise && stops.length >= 2) {
+    for (const p of permutations(stops)) {
+      const r = runOrder([from, ...p, to], t0, o, st.dwell);
+      if (r && (!best || r.minutes < best.minutes - 0.01)) best = { ...r, order: p };
+    }
+  }
+  return best ? { ...best, asEntered } : null;
+}
+const opts = st => ({ vehicle: st.vehicle, avoidTolls: st.tolls, rain: st.rain, day: st.day });
+
+// ---------- State ----------
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DEFAULT = { from: "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from" };
+let state = { ...DEFAULT };
+try { const s = JSON.parse(localStorage.getItem("namma-route") || "null"); if (s && IDX[s.from] !== undefined && IDX[s.to] !== undefined) state = { ...DEFAULT, ...s, stops: (s.stops || []).filter(id => IDX[id] !== undefined) }; } catch (e) {}
+const save = () => { try { localStorage.setItem("namma-route", JSON.stringify(state)); } catch (e) {} };
+let chosen = "fast"; // fast | short | alt
+let autoFit = true;
+
+// ---------- Helpers ----------
+const pad = n => String(n).padStart(2, "0");
+const clock = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return pad(Math.floor(m / 60)) + ":" + pad(m % 60); };
+const dur = m => { m = Math.round(m); return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min" : ""); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function band(m) { return m < 1.35 ? ["good","Light"] : m < 1.9 ? ["warn","Moderate"] : m < 2.5 ? ["bad","Heavy"] : ["worst","Jammed"]; }
+const nm = i => NODES[i].name;
+
+// ---------- Controls ----------
+const AREAS = ["Central","East","South","North","West"];
+const optionsHTML = AREAS.map(a => `<optgroup label="${a}">` + NODES.filter(n => n.area === a).sort((x, y) => x.name.localeCompare(y.name)).map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join("") + `</optgroup>`).join("");
+const $ = s => document.querySelector(s);
+$("#from").innerHTML = optionsHTML; $("#to").innerHTML = optionsHTML;
+$("#days").innerHTML = DAYS.map((d, i) => `<label><input type="radio" name="day" value="${i}"><span>${d}</span></label>`).join("");
+
+function syncControls() {
+  $("#from").value = state.from; $("#to").value = state.to;
+  $("#slot").value = state.slot; $("#clock").textContent = clock(state.slot * 15);
+  document.querySelectorAll('input[name="day"]').forEach(r => r.checked = +r.value === state.day);
+  document.querySelectorAll('input[name="veh"]').forEach(r => r.checked = r.value === state.vehicle);
+  document.querySelectorAll('input[name="tap"]').forEach(r => r.checked = r.value === state.tap);
+  $("#tolls").checked = state.tolls; $("#rain").checked = state.rain; $("#optimise").checked = state.optimise; $("#dwell").value = state.dwell;
+  $("#stops").innerHTML = state.stops.map((id, i) => `<div class="field"><span class="pin stop" aria-hidden="true">${i + 1}</span><select data-stop="${i}" id="stop-${i}" aria-label="Stop ${i + 1}">${optionsHTML}</select><button class="icon-btn" data-remove="${i}" aria-label="Remove stop ${i + 1}">×</button></div>`).join("");
+  state.stops.forEach((id, i) => { $(`#stop-${i}`).value = id; });
+  $("#addStop").disabled = state.stops.length >= 6;
+  $("#addStop").textContent = state.stops.length >= 6 ? "Up to 6 stops" : "+ Add a stop on the way";
+  $("#stopOpts").hidden = state.stops.length < 1;
+}
+function update(patch, opts = {}) {
+  Object.assign(state, patch);
+  if (opts.refit !== false) autoFit = true;
+  if (!opts.keepChoice) chosen = "fast";
+  save(); syncControls(); compute();
+}
+$("#from").addEventListener("change", e => update({ from: e.target.value }));
+$("#to").addEventListener("change", e => update({ to: e.target.value }));
+$("#swap").addEventListener("click", () => update({ from: state.to, to: state.from, stops: state.stops.slice().reverse() }));
+$("#addStop").addEventListener("click", () => {
+  const used = new Set([state.from, state.to, ...state.stops]);
+  const pick = ["mgroad","indiranagar","sonyworld","jayanagar","malleshwaram","marathahalli","hebbal","yeshwanthpur"].find(id => !used.has(id)) || "mgroad";
+  update({ stops: [...state.stops, pick] });
+});
+$("#stops").addEventListener("change", e => { const i = e.target.dataset.stop; if (i !== undefined) { const s = state.stops.slice(); s[+i] = e.target.value; update({ stops: s }); } });
+$("#stops").addEventListener("click", e => { const b = e.target.closest("[data-remove]"); if (b) { const s = state.stops.slice(); s.splice(+b.dataset.remove, 1); update({ stops: s }); } });
+$("#optimise").addEventListener("change", e => update({ optimise: e.target.checked }));
+$("#dwell").addEventListener("change", e => update({ dwell: Math.max(0, Math.min(240, +e.target.value || 0)) }, { refit: false }));
+$("#days").addEventListener("change", e => update({ day: +e.target.value }, { refit: false }));
+$("#slot").addEventListener("input", e => { state.slot = +e.target.value; $("#clock").textContent = clock(state.slot * 15); save(); autoFit = false; compute(); });
+document.querySelectorAll('input[name="veh"]').forEach(r => r.addEventListener("change", () => update({ vehicle: r.value }, { refit: false })));
+document.querySelectorAll('input[name="tap"]').forEach(r => r.addEventListener("change", () => { state.tap = r.value; save(); }));
+$("#tolls").addEventListener("change", e => update({ tolls: e.target.checked }));
+$("#rain").addEventListener("change", e => update({ rain: e.target.checked }, { refit: false }));
+$("#now").addEventListener("click", () => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map(p => [p.type, p.value]));
+  const day = Math.max(0, DAYS.indexOf(parts.weekday));
+  const slot = Math.min(95, Math.round((+parts.hour * 60 + +parts.minute) / 15));
+  update({ day, slot }, { refit: false });
+});
+
+// ---------- Compute & render ----------
+let current = null;
+let animateRoute = true, lastSig = "";
+function compute() {
+  const t0 = state.slot * 15;
+  const main = plan(state, t0);
+  const o = opts(state);
+  let short = null, alt = null, free = null;
+  if (main && state.stops.length === 0 && state.from !== state.to) {
+    const sd = route(IDX[state.from], IDX[state.to], t0, o, "dist");
+    if (sd) short = evalPath(sd, t0, o);
+    const fastSteps = main.legs[0].steps;
+    const pen = new Set(fastSteps.map(s => s.e));
+    const as = route(IDX[state.from], IDX[state.to], t0, o, "time", pen);
+    if (as) {
+      const a = evalPath(as, t0, o);
+      const same = a.steps.length === fastSteps.length && a.steps.every((s, i) => s.e === fastSteps[i].e);
+      if (!same && a.minutes < main.minutes * 1.45) alt = a;
+    }
+    if (short && short.steps.map(s => s.e).join() === fastSteps.map(s => s.e).join()) short = null;
+  }
+  if (main) {
+    const night = { ...o, day: o.day, rain: false };
+    free = main.legs.reduce((sum, l) => sum + evalPath(l.steps, 180, night).minutes, 0) + state.dwell * main.order.length;
+  }
+  // departure-time series, keeping the stop order fixed
+  const series = [];
+  if (main) for (let s = 0; s < 96; s++) {
+    const r = state.stops.length ? plan(state, s * 15, main.order) : (() => { const st = route(IDX[state.from], IDX[state.to], s * 15, o); return st ? evalPath(st, s * 15, o) : null; })();
+    series.push(r ? r.minutes : null);
+  }
+  current = { main, short, alt, free, series, t0 };
+  const d = displayed();
+  const sig = d ? d.legs.map(l => l.steps.map(x => x.e).join(",")).join("|") : "";
+  animateRoute = sig !== lastSig; lastSig = sig;
+  render();
+}
+function displayed() {
+  const c = current;
+  if (!c.main) return null;
+  if (chosen === "short" && c.short) return { legs: [c.short], minutes: c.short.minutes, km: c.short.km, arrive: c.short.arrive };
+  if (chosen === "alt" && c.alt) return { legs: [c.alt], minutes: c.alt.minutes, km: c.alt.km, arrive: c.alt.arrive };
+  return c.main;
+}
+function render() { renderSummary(); renderMap(); renderChart(); renderSteps(); }
+
+function gmapsURL(d) {
+  const ll = i => NODES[i].lat.toFixed(5) + "," + NODES[i].lon.toFixed(5);
+  const p = new URLSearchParams({ api: "1", origin: ll(IDX[state.from]), destination: ll(IDX[state.to]), travelmode: "driving" });
+  if (current.main.order.length) p.set("waypoints", current.main.order.map(ll).join("|"));
+  if (state.tolls) p.set("avoid", "tolls");
+  return "https://www.google.com/maps/dir/?" + p.toString();
+}
+function bestInWindow() {
+  const s = current.series, i0 = state.slot;
+  let bi = i0;
+  for (let i = Math.max(0, i0 - 8); i <= Math.min(95, i0 + 8); i++) if (s[i] != null && s[i] < s[bi] - 0.5) bi = i;
+  return bi;
+}
+function renderSummary() {
+  const el = $("#summary"), c = current;
+  if (!c.main) { el.innerHTML = `<div class="empty">No route found with these settings. Try allowing tolls.</div>`; return; }
+  const d = displayed();
+  const avg = d.minutes > 0 ? d.km / (d.minutes / 60) : 0;
+  const overall = d.legs.flatMap(l => l.steps);
+  const w = overall.reduce((s, x) => s + x.km, 0) || 1;
+  const m = overall.reduce((s, x) => s + x.mult * x.km, 0) / w || 1;
+  const [bcls, blabel] = band(m);
+  const delay = Math.max(0, c.main.minutes - c.free);
+  const bi = bestInWindow(), save = c.series[state.slot] - c.series[bi];
+  const tripName = [state.from, ...c.main.order.map(i => NODES[i].id), state.to].map(id => esc(NODES[IDX[id]].name)).join(" → ");
+  let callout;
+  if (bi !== state.slot && save >= 3) {
+    const when = bi < state.slot ? "Leave earlier" : "Wait a little";
+    callout = `<div class="callout"><div class="big">${clock(bi * 15)}</div><p><b>${when}:</b> leaving at ${clock(bi * 15)} takes ${dur(c.series[bi])}, saving about ${dur(save)} compared with ${clock(state.slot * 15)}.</p><button class="pill-btn" id="useBest">Use ${clock(bi * 15)}</button></div>`;
+  } else {
+    callout = `<div class="callout"><div class="big">✓</div><p>${clock(state.slot * 15)} is already the quickest departure within two hours either side.</p><span></span></div>`;
+  }
+  let compare = "";
+  if (c.short || c.alt) {
+    const card = (key, title, r, sub) => `<button class="opt ${chosen === key ? "active" : ""}" data-choose="${key}"><span class="k">${title}</span><span class="v">${dur(r.minutes)} · ${r.km.toFixed(1)} km</span><span class="s">${sub}</span></button>`;
+    compare = `<div class="compare">${card("fast", "Fastest now", c.main, "Via " + esc(mainRoads(c.main.legs[0].steps)))}${c.alt ? card("alt", "Alternative", c.alt, "Via " + esc(mainRoads(c.alt.steps))) : ""}${c.short ? card("short", "Shortest distance", c.short, "Via " + esc(mainRoads(c.short.steps))) : ""}</div>`;
+  }
+  let orderNote = "";
+  if (state.stops.length >= 2 && state.optimise && c.main.asEntered) {
+    const gain = c.main.asEntered.minutes - c.main.minutes;
+    orderNote = gain >= 1 ? `<span class="chip"><i style="background:var(--good)"></i>Reordered stops save ${dur(gain)}</span>` : `<span class="chip"><i style="background:var(--good)"></i>Your stop order is already the fastest</span>`;
+  }
+  el.innerHTML = `
+    <div class="sum-top">
+      <div style="display:grid;gap:6px;min-width:0">
+        <div class="trip-name">${tripName}</div>
+        <div class="meta">${d.km.toFixed(1)} km · leave ${DAYS[state.day]} ${clock(c.t0)} · arrive ${clock(d.arrive)} · avg ${avg.toFixed(0)} km/h${state.stops.length ? ` · includes ${dur(state.dwell * state.stops.length)} at stops` : ""}</div>
+      </div>
+      <div class="eta">${etaHTML(d.minutes)}</div>
+    </div>
+    <div class="chips">
+      <span class="chip"><i style="background:var(--${bcls})"></i>${blabel} traffic</span>
+      <span class="chip">${delay >= 1 ? "Traffic adds " + dur(delay) + " over empty roads" : "Close to empty-road time"}</span>
+      ${state.rain ? `<span class="chip"><i style="background:var(--warn)"></i>Rain adjusted</span>` : ""}
+      ${orderNote}
+    </div>
+    ${callout}
+    ${compare}
+    <div class="actions"><a class="link-btn" href="${gmapsURL(d)}" target="_blank" rel="noopener">Open in Google Maps ↗</a><span class="note">Google Maps picks its own path using live traffic. Stops are passed in the order shown.</span></div>`;
+  const ub = $("#useBest"); if (ub) ub.addEventListener("click", () => update({ slot: bi }, { refit: false }));
+  el.querySelectorAll("[data-choose]").forEach(b => b.addEventListener("click", () => { chosen = b.dataset.choose; autoFit = true; animateRoute = true; render(); }));
+}
+function etaHTML(m) {
+  m = Math.round(m);
+  if (m < 60) return m + "<small> min</small>";
+  return Math.floor(m / 60) + "<small> h</small>" + (m % 60 ? " " + (m % 60) + "<small> min</small>" : "");
+}
+function mainRoads(steps) {
+  const tally = new Map();
+  steps.forEach(s => { const r = EDGES[s.e].road; tally.set(r, (tally.get(r) || 0) + s.km); });
+  return [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(x => x[0]).join(", ") || "local roads";
+}
+
+// ---------- Map ----------
+const svg = $("#map");
+const K = 2800, LON0 = 77.45, LAT0 = 13.24, COS = Math.cos(13 * R);
+const px = n => (n.lon - LON0) * COS * K, py = n => (LAT0 - n.lat) * K;
+NODES.forEach(n => { n.x = px(n); n.y = py(n); });
+let view = { x: 0, y: 0, w: 900, h: 900 };
+const CORE = NODES.filter(n => n.lat < 13.08);
+function fit(points, padFrac = 0.12) {
+  const xs = points.map(p => p.x), ys = points.map(p => p.y);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  let w = Math.max(x1 - x0, 140), h = Math.max(y1 - y0, 140);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  w *= 1 + padFrac * 2; h *= 1 + padFrac * 2;
+  const r = svg.clientHeight / Math.max(1, svg.clientWidth) || 1;
+  if (h / w > r) w = h / r; else h = w * r;
+  view = { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+function scale() { return Math.min(svg.clientWidth / view.w, svg.clientHeight / view.h) || 1; }
+function routeNodes(d) {
+  const ids = new Set();
+  d.legs.forEach(l => l.steps.forEach(s => { ids.add(s.from); ids.add(s.to); }));
+  ids.add(IDX[state.from]); ids.add(IDX[state.to]); current.main.order.forEach(i => ids.add(i));
+  return [...ids].map(i => NODES[i]);
+}
+const COLOR = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", worst: "var(--worst)" };
+const WIDTH = { xway: 3.4, arterial: 2.8, main: 2, city: 1.4 };
+function renderMap() {
+  const d = current.main ? displayed() : null;
+  if (autoFit) { fit(d ? routeNodes(d) : CORE, 0.16); autoFit = false; }
+  const s = scale(), u = v => v / s; // px -> view units
+  const o = opts(state), t0 = state.slot * 15;
+  const onRoute = new Set(d ? d.legs.flatMap(l => l.steps.map(x => x.e)) : []);
+  let h = `<rect x="${view.x - 5000}" y="${view.y - 5000}" width="${view.w + 10000}" height="${view.h + 10000}" fill="var(--map)"/>`;
+  const ell = (arr, fill) => arr.map(([lat, lon, rx, ry, rot]) => { const x = px({ lon }), y = py({ lat }); return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${(rx * K / 111).toFixed(1)}" ry="${(ry * K / 111).toFixed(1)}" transform="rotate(${rot} ${x.toFixed(1)} ${y.toFixed(1)})" fill="${fill}"/>`; }).join("");
+  h += ell(PARKS, "var(--park)") + ell(LAKES, "var(--water)");
+  // traffic layer
+  EDGES.forEach((E, i) => {
+    const A = NODES[E.a], B = NODES[E.b];
+    const m = (edgeMult(E, 0, t0, o) + edgeMult(E, 1, t0, o)) / 2;
+    const [cls] = band(m);
+    const dim = d && !onRoute.has(i);
+    h += `<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" stroke="${COLOR[cls]}" stroke-width="${WIDTH[E.cls]}" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="${dim ? 0.38 : 0.85}"${E.toll ? ` stroke-dasharray="6 3"` : ""}><title>${esc(E.road)}: ${band(m)[1].toLowerCase()} traffic at ${clock(t0)}</title></line>`;
+  });
+  const poly = steps => steps.length ? [NODES[steps[0].from], ...steps.map(s => NODES[s.to])].map(n => n.x.toFixed(1) + "," + n.y.toFixed(1)).join(" ") : "";
+  if (d) {
+    if (current.alt && chosen !== "alt" && state.stops.length === 0) h += `<polyline points="${poly(current.alt.steps)}" fill="none" stroke="var(--muted)" stroke-width="4" stroke-dasharray="2 7" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity=".9"/>`;
+    const all = d.legs.flatMap(l => l.steps);
+    // draw legs as one polyline per leg
+    d.legs.forEach(l => {
+      const pts = poly(l.steps);
+      if (!pts) return;
+      h += `<polyline points="${pts}" fill="none" stroke="var(--surface)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+      h += `<polyline class="${animateRoute ? "route-line" : ""}" pathLength="2400" points="${pts}" fill="none" stroke="var(--accent)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+    });
+    void all;
+  }
+  // nodes
+  const k = svg.clientWidth / view.w;
+  const zoomed = view.w < 520;
+  const special = new Map();
+  if (current.main) { special.set(IDX[state.from], "A"); current.main.order.forEach((i, n) => special.set(i, String(n + 1))); special.set(IDX[state.to], special.has(IDX[state.to]) && IDX[state.to] === IDX[state.from] ? "A/B" : "B"); }
+  const routeSet = new Set(d ? routeNodes(d).map(n => IDX[n.id]) : []);
+  NODES.forEach((n, i) => {
+    if (special.has(i)) return;
+    const r = u(n.major ? 3.6 : 2.6);
+    h += `<g data-node="${i}" class="nd"><circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${u(14).toFixed(2)}" fill="transparent"/><circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${r.toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/><title>${esc(n.name)}</title></g>`;
+  });
+  // labels
+  const fs = u(11.5);
+  NODES.forEach((n, i) => {
+    if (special.has(i)) return;
+    if (!(n.major || zoomed || routeSet.has(i))) return;
+    h += `<text x="${(n.x + u(6)).toFixed(1)}" y="${(n.y - u(5)).toFixed(1)}" font-size="${fs.toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="${n.major ? 600 : 500}" fill="var(--ink)" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(shortName(n.name))}</text>`;
+  });
+  special.forEach((lab, i) => {
+    const n = NODES[i], r = u(lab.length > 1 ? 13 : 11);
+    const isStop = /^\d$/.test(lab);
+    h += `<g data-node="${i}" class="nd"><circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${r.toFixed(2)}" fill="${isStop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${n.x.toFixed(1)}" y="${(n.y + u(4)).toFixed(1)}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${isStop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;
+    h += `<text x="${(n.x + r + u(4)).toFixed(1)}" y="${(n.y + u(4)).toFixed(1)}" font-size="${u(12.5).toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" fill="var(--accent)" stroke="var(--map)" stroke-width="${u(3.5).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(shortName(n.name))}</text>`;
+  });
+  void k;
+  animateRoute = false;
+  svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
+  svg.innerHTML = h;
+  $("#legend").innerHTML = `<div><b>Traffic at ${DAYS[state.day]} ${clock(t0)}</b></div><div class="row"><span class="sw"><i style="background:var(--good)"></i>Light</span><span class="sw"><i style="background:var(--warn)"></i>Moderate</span><span class="sw"><i style="background:var(--bad)"></i>Heavy</span><span class="sw"><i style="background:var(--worst)"></i>Jammed</span></div><div class="row"><span class="sw"><i style="background:var(--accent);height:5px"></i>Your route</span>${current.alt && chosen !== "alt" && !state.stops.length ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 7px)"></i>Alternative</span>` : ""}<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 6px,transparent 6px 9px)"></i>Toll</span></div>`;
+}
+const shortName = s => s.replace(/ \((?!ITPL|KIA|Forum|Sony World).*\)$/, "").replace("Kempegowda Airport (KIA)", "Airport (KIA)");
+
+// pan / zoom / tap
+const pointers = new Map();
+let drag = null, moved = false, pinch = null;
+function toView(cx, cy) { const r = svg.getBoundingClientRect(), s = scale(); const ox = (r.width - view.w * s) / 2, oy = (r.height - view.h * s) / 2; return { x: view.x + (cx - r.left - ox) / s, y: view.y + (cy - r.top - oy) / s }; }
+function zoomAt(f, cx, cy) {
+  const p = toView(cx, cy);
+  const w = Math.min(2400, Math.max(110, view.w * f)), real = w / view.w;
+  view = { x: p.x - (p.x - view.x) * real, y: p.y - (p.y - view.y) * real, w, h: view.h * real };
+  renderMap();
+}
+svg.addEventListener("pointerdown", e => {
+  svg.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  moved = false;
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, view: { ...view }, target: e.target.closest("[data-node]") };
+  else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), w: view.w }; drag = null; }
+});
+svg.addEventListener("pointermove", e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size === 2) {
+    const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    const target = pinch.w * pinch.d / Math.max(10, d);
+    zoomAt(target / view.w, (a.x + b.x) / 2, (a.y + b.y) / 2); moved = true; return;
+  }
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!moved && Math.hypot(dx, dy) < 5) return;
+  moved = true; svg.classList.add("dragging");
+  const s = scale();
+  view = { ...drag.view, x: drag.view.x - dx / s, y: drag.view.y - dy / s };
+  svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  svg.classList.remove("dragging");
+  if (pointers.size < 2) pinch = null;
+  if (drag && !moved && drag.target) tapNode(+drag.target.dataset.node);
+  else if (moved) renderMap();
+  drag = null;
+}
+svg.addEventListener("pointerup", endPointer);
+svg.addEventListener("pointercancel", e => { pointers.delete(e.pointerId); drag = null; pinch = null; });
+svg.addEventListener("wheel", e => { e.preventDefault(); zoomAt(Math.exp(e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+function tapNode(i) {
+  const id = NODES[i].id;
+  if (state.tap === "from") update({ from: id, tap: "to" }, { refit: false });
+  else if (state.tap === "to") update({ to: id }, { refit: false });
+  else if (state.stops.length < 6 && !state.stops.includes(id)) update({ stops: [...state.stops, id] }, { refit: false });
+}
+const centre = () => { const r = svg.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+$("#zin").addEventListener("click", () => zoomAt(0.7, ...centre()));
+$("#zout").addEventListener("click", () => zoomAt(1 / 0.7, ...centre()));
+$("#zfit").addEventListener("click", () => { autoFit = true; renderMap(); });
+$("#zall").addEventListener("click", () => { fit(NODES, 0.04); renderMap(); });
+let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { autoFit = true; renderMap(); }, 120); }).observe(svg);
+
+// ---------- Departure chart ----------
+function renderChart() {
+  const el = $("#chart"), s = current.series;
+  if (!current.main) { el.innerHTML = ""; return; }
+  const W = 720, H = 230, L = 44, Rt = 10, T = 14, B = 30;
+  const vals = s.filter(v => v != null), mn = Math.min(...vals), mx = Math.max(...vals);
+  const step = mx > 150 ? 60 : mx > 75 ? 30 : mx > 30 ? 15 : 10;
+  const top = Math.ceil(mx / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const bw = (W - L - Rt) / 96;
+  const bi = bestInWindow();
+  let h = "";
+  for (let v = 0; v <= top; v += step) h += `<line x1="${L}" x2="${W - Rt}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${v}</text>`;
+  h += `<text x="${L - 8}" y="${T - 3}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="IBM Plex Sans, sans-serif">min</text>`;
+  const w0 = Math.max(0, state.slot - 8), w1 = Math.min(95, state.slot + 8);
+  h += `<rect x="${L + w0 * bw}" y="${T}" width="${(w1 - w0 + 1) * bw}" height="${H - T - B}" fill="var(--accent-soft)"/>`;
+  s.forEach((v, i) => {
+    if (v == null) return;
+    const r = v / mn, cls = r < 1.15 ? "good" : r < 1.5 ? "warn" : r < 2 ? "bad" : "worst";
+    const x = L + i * bw + 0.6, yy = y(v);
+    const sel = i === state.slot;
+    h += `<rect class="bar" data-slot="${i}" x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${(bw - 1.2).toFixed(1)}" height="${(H - B - yy).toFixed(1)}" rx="1.5" fill="${COLOR[cls]}" opacity="${sel || i === bi ? 1 : 0.62}"${sel ? ` stroke="var(--ink)" stroke-width="1.5"` : ""}><title>Leave ${clock(i * 15)}: ${dur(v)}</title></rect>`;
+  });
+  for (let hr = 0; hr <= 21; hr += 3) h += `<text x="${L + hr * 4 * bw}" y="${H - 10}" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${pad(hr % 24)}:00</text>`;
+  const sx = L + state.slot * bw + bw / 2;
+  h += `<text x="${Math.min(W - 60, Math.max(L + 30, sx))}" y="${Math.max(T + 10, y(s[state.slot]) - 8)}" text-anchor="middle" font-size="11.5" font-weight="600" font-family="IBM Plex Sans, sans-serif" fill="var(--ink)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${dur(s[state.slot])}</text>`;
+  el.innerHTML = h;
+  const di = s.indexOf(mn);
+  $("#chartNote").textContent = `Quickest all day: ${clock(di * 15)} (${dur(mn)}) · slowest ${dur(mx)}`;
+}
+$("#chart").addEventListener("click", e => { const b = e.target.closest("[data-slot]"); if (b) update({ slot: +b.dataset.slot }, { refit: false }); });
+
+// ---------- Directions ----------
+function renderSteps() {
+  const el = $("#steps"), d = current.main ? displayed() : null;
+  if (!d) { el.innerHTML = ""; $("#dirNote").textContent = ""; return; }
+  let h = "";
+  d.legs.forEach((leg, li) => {
+    if (!leg.steps.length) return;
+    const groups = [];
+    leg.steps.forEach(s => {
+      const road = EDGES[s.e].road, last = groups[groups.length - 1];
+      if (last && last.road === road) { last.steps.push(s); } else groups.push({ road, steps: [s] });
+    });
+    groups.forEach(gp => {
+      const kmv = gp.steps.reduce((a, s) => a + s.km, 0), mins = gp.steps[gp.steps.length - 1].t1 - gp.steps[0].t0;
+      const m = gp.steps.reduce((a, s) => a + s.mult * s.km, 0) / kmv;
+      const [cls, lab] = band(m);
+      const toll = gp.steps.some(s => EDGES[s.e].toll);
+      h += `<li><span class="dot" style="background:var(--${cls})" title="${lab} traffic"></span><div><div class="road">${esc(gp.road)}${toll ? " · toll" : ""}</div><div class="via">${esc(nm(gp.steps[0].from))} → ${esc(nm(gp.steps[gp.steps.length - 1].to))} · ${lab.toLowerCase()} traffic</div></div><div class="num"><b>${dur(mins)}</b><br>${kmv.toFixed(1)} km · ${clock(gp.steps[0].t0)}</div></li>`;
+    });
+    if (li < d.legs.length - 1) h += `<li class="stopline"><span class="dot"></span><div>Stop ${li + 1}: ${esc(nm(current.main.order[li]))} · ${dur(state.dwell)} · leave ${clock(d.legs[li + 1].depart)}</div></li>`;
+  });
+  if (!h) h = `<li class="stopline"><span class="dot"></span><div>Start and destination are the same place.</div></li>`;
+  el.innerHTML = h;
+  $("#dirNote").textContent = `Arrive ${clock(d.arrive)}`;
+}
+
+syncControls();
+compute();
+})();
+</script>
+
+</body>
+</html>

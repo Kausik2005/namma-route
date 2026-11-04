@@ -88,6 +88,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .pill-btn:hover { border-color: var(--accent); color: var(--accent); }
 .dwell { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; align-items: center; color: var(--muted); }
 .note { color: var(--muted); font-size: 12.5px; }
+.commute { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.commute .pill-btn.go { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+.linkish { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
+.linkish:hover { color: var(--ink); }
+.mode-row { justify-content: space-between; }
+.mode-row .seg span { padding: 4px 10px; font-size: 12.5px; }
+.cost { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); }
 
 .work { display: grid; gap: 18px; min-width: 0; }
 .summary { padding: 18px 20px; display: grid; gap: 14px; }
@@ -178,6 +185,7 @@ footer p { margin: 0 0 6px; }
     <aside class="rail" aria-label="Trip settings">
       <div class="group">
         <div class="label">Trip</div>
+        <div class="commute" id="commute"></div>
         <div class="field"><span class="pin" aria-hidden="true">A</span><select id="from" aria-label="Start"></select><button class="icon-btn" id="swap" type="button" title="Swap start and destination" aria-label="Swap start and destination">⇅</button></div>
         <div id="stops" class="group"></div>
         <div class="field"><span class="pin" aria-hidden="true">B</span><select id="to" aria-label="Destination"></select><span></span></div>
@@ -189,12 +197,13 @@ footer p { margin: 0 0 6px; }
       </div>
 
       <div class="group">
-        <div class="row" style="justify-content:space-between"><span class="label">Leave at</span><button class="pill-btn" id="now" type="button">Now (IST)</button></div>
+        <div class="row mode-row"><div class="seg" role="radiogroup" aria-label="Plan by"><label><input type="radio" name="mode" value="leave" checked><span>Leave at</span></label><label><input type="radio" name="mode" value="arrive"><span>Arrive by</span></label></div><button class="pill-btn" id="now" type="button">Now (IST)</button></div>
         <div class="seg days" id="days" role="radiogroup" aria-label="Day of week"></div>
         <div class="time-row">
           <input type="range" id="slot" min="0" max="95" step="1" value="36" aria-label="Departure time">
           <div class="clock" id="clock">09:00</div>
         </div>
+        <div class="note" id="modeNote"></div>
       </div>
 
       <div class="group">
@@ -250,6 +259,7 @@ footer p { margin: 0 0 6px; }
       <footer>
         <p>Roads: a simplified network of about 80 junctions and the arterial roads between them (ORR, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd and others). Positions are approximate and road lengths are estimated.</p>
         <p>Traffic: a typical-day model, not live data. It has morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks.</p>
+        <p>Costs are rough guides: petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler, Electronic City Elevated Expressway toll about ₹70 (₹30 on two wheels), NH 44 airport toll about ₹125 for cars, autos at ₹36 for the first 2 km then ₹18 a km, and BMRCL distance fares from ₹10 to ₹90.</p>
         <p>Metro: the Purple, Green and Yellow lines with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
       </footer>
     </main>
@@ -546,7 +556,7 @@ function level(h, day, tid) {
   const fa = tid > 0 ? 1 : tid < 0 ? 0.5 : 0.75, fp = tid > 0 ? 0.5 : tid < 0 ? 1 : 0.75;
   return 0.3 * active + am * fa + pm * fp;
 }
-const clockParts = (tMin, day) => ({ h: (((tMin % 1440) + 1440) % 1440) / 60, day: (day + Math.floor(tMin / 1440)) % 7 });
+const clockParts = (tMin, day) => ({ h: (((tMin % 1440) + 1440) % 1440) / 60, day: (((day + Math.floor(tMin / 1440)) % 7) + 7) % 7 });
 function edgeMult(E, dir, tMin, o) {
   const { h, day } = clockParts(tMin, o.day);
   const lv = level(h, day, E.tidal[dir]);
@@ -707,10 +717,34 @@ function metroTrip(fromId, toId, t0, o) {
 const rideKm = ride => ride.rides.reduce((s, r) => s + r.path.slice(1).reduce((a, k, i) => a + km(ST[r.path[i]], ST[k]), 0), 0);
 
 /* ============================================================
+   Costs (rupees, rough Bengaluru figures)
+   ============================================================ */
+const PETROL = 103, MILEAGE = { car: 14, bike: 45 };
+const TOLL_FEE = { "Electronic City Elevated Expressway": { car: 70, bike: 30 }, "Airport Rd": { car: 125, bike: 0 } };
+const autoFare = roadKm => Math.round(roadKm <= 2 ? 36 : 36 + (roadKm - 2) * 18);
+const METRO_FARE = [[2, 10], [4, 20], [6, 30], [8, 40], [10, 50], [15, 60], [20, 70], [25, 80]];
+const metroFare = rideKm => (METRO_FARE.find(([d]) => rideKm <= d) || [0, 90])[1];
+function roadCost(trip, vehicle) {
+  const steps = (trip.legs || [trip]).flatMap(l => l.steps);
+  const fuel = trip.km / MILEAGE[vehicle] * PETROL;
+  const seen = new Set();
+  const tolls = steps.reduce((a, s) => { const E = EDGES[s.e], fee = E.toll && TOLL_FEE[E.road]; if (!fee || seen.has(E.road)) return a; seen.add(E.road); return a + fee[vehicle]; }, 0);
+  return { fuel: Math.round(fuel), tolls, total: Math.round(fuel) + tolls };
+}
+function metroCost(m, vehicle) {
+  const mile = a => a.mode === "auto" ? autoFare(a.km * 1.3) : a.mode === "bike" ? Math.round(a.km * 1.3 / MILEAGE.bike * PETROL) : 0;
+  const fare = metroFare(rideKm(m.ride)), access = mile(m.first) + mile(m.last);
+  return { fare, access, total: fare + access, vehicle };
+}
+const rupees = n => "₹" + Math.round(n).toLocaleString("en-IN");
+const roadCostText = c => c.tolls ? `${rupees(c.fuel)} fuel + ${rupees(c.tolls)} toll` : `${rupees(c.fuel)} fuel`;
+const metroCostText = c => c.access ? `${rupees(c.fare)} fare + ${rupees(c.access)} ${c.vehicle === "bike" ? "fuel" : "auto"}` : `${rupees(c.fare)} fare`;
+
+/* ============================================================
    State
    ============================================================ */
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DEFAULT = { from: "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from" };
+const DEFAULT = { from: "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from", mode: "leave", commute: null };
 const STORE = "namma-route";
 let state = { ...DEFAULT };
 try {
@@ -749,6 +783,12 @@ $("#days").innerHTML = DAYS.map((d, i) => `<label><input type="radio" name="day"
 function syncControls() {
   $("#from").value = state.from; $("#to").value = state.to;
   $("#slot").value = state.slot; $("#clock").textContent = clock(state.slot * 15);
+  document.querySelectorAll('input[name="mode"]').forEach(r => { r.checked = r.value === state.mode; });
+  $("#slot").setAttribute("aria-label", state.mode === "arrive" ? "Arrival time" : "Departure time");
+  const cm = state.commute, short = id => esc(shortName(NODES[IDX[id]].name));
+  $("#commute").innerHTML = cm
+    ? `<button class="pill-btn go" type="button" data-commute="out">${short(cm.from)} → ${short(cm.to)}</button><button class="pill-btn go" type="button" data-commute="back">Back to ${short(cm.from)}</button><button class="linkish" type="button" data-commute="forget">Forget</button>`
+    : `<button class="linkish" type="button" data-commute="save">Save A → B as my daily commute</button>`;
   document.querySelectorAll('input[name="day"]').forEach(r => { r.checked = +r.value === state.day; });
   document.querySelectorAll('input[name="veh"]').forEach(r => { r.checked = r.value === state.vehicle; });
   document.querySelectorAll('input[name="tap"]').forEach(r => { r.checked = r.value === state.tap; });
@@ -780,6 +820,16 @@ $("#optimise").addEventListener("change", e => update({ optimise: e.target.check
 $("#dwell").addEventListener("change", e => update({ dwell: Math.max(0, Math.min(240, +e.target.value || 0)) }, { refit: false }));
 $("#days").addEventListener("change", e => update({ day: +e.target.value }, { refit: false, keepChoice: true }));
 $("#slot").addEventListener("input", e => { state.slot = +e.target.value; $("#clock").textContent = clock(state.slot * 15); save(); compute(); });
+document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener("change", () => update({ mode: r.value }, { refit: false, keepChoice: true })));
+$("#commute").addEventListener("click", e => {
+  const b = e.target.closest("[data-commute]");
+  if (!b) return;
+  const cm = state.commute, act = b.dataset.commute;
+  if (act === "save") update({ commute: { from: state.from, to: state.to } }, { refit: false, keepChoice: true });
+  else if (act === "forget") update({ commute: null }, { refit: false, keepChoice: true });
+  else if (act === "out") update({ from: cm.from, to: cm.to, stops: [], slot: state.slot >= 56 ? 36 : state.slot });
+  else if (act === "back") update({ from: cm.to, to: cm.from, stops: [], slot: state.slot < 56 ? 74 : state.slot });
+});
 document.querySelectorAll('input[name="veh"]').forEach(r => r.addEventListener("change", () => update({ vehicle: r.value }, { refit: false, keepChoice: true })));
 document.querySelectorAll('input[name="tap"]').forEach(r => r.addEventListener("change", () => { state.tap = r.value; save(); }));
 $("#tolls").addEventListener("change", e => update({ tolls: e.target.checked }));
@@ -811,8 +861,21 @@ function daySeries(day, order, withMetro = true) {
   seriesCache.set(key, out);
   return out;
 }
+// Latest departure (5-minute steps) that still arrives by the target on a typical day.
+function latestRoadDeparture(target) {
+  const probe = plan(state, target - 60);
+  if (!probe) return null;
+  for (let dep = target - 5; dep >= target - 360; dep -= 5) { const r = plan(state, dep, probe.order); if (r && r.arrive <= target) return dep; }
+  return null;
+}
+function latestMetroDeparture(target, o) {
+  for (let dep = target - 10; dep >= target - 240; dep -= 5) { const m = metroTrip(state.from, state.to, dep, o); if (m && m.arrive <= target) return m; }
+  return null;
+}
 function compute() {
-  const t0 = state.slot * 15, o = opts(state);
+  const o = opts(state), arriveBy = state.mode === "arrive" ? state.slot * 15 : null;
+  let t0 = state.slot * 15;
+  if (arriveBy != null) { const dep = latestRoadDeparture(arriveBy); if (dep != null) t0 = dep; }
   const main = plan(state, t0);
   let short = null, alt = null, metro = null;
   if (main && !state.stops.length && state.from !== state.to) {
@@ -821,11 +884,13 @@ function compute() {
     if (sd && !samePath(sd, fastSteps)) short = evalPath(sd, t0, o);
     const as = route(a, b, t0, o, { penalty: new Set(fastSteps.map(s => s.e)) });
     if (as && !samePath(as, fastSteps)) { const r = evalPath(as, t0, o); if (r.minutes < main.minutes * 1.45) alt = r; }
-    metro = metroTrip(state.from, state.to, t0, o);
+    metro = arriveBy != null ? latestMetroDeparture(arriveBy, o) : metroTrip(state.from, state.to, t0, o);
   }
   if (chosen === "metro" && !metro || chosen === "alt" && !alt || chosen === "short" && !short) chosen = "fast";
   const series = main ? daySeries(state.day, main.order) : { road: [], metro: [] };
-  current = { main, short, alt, metro, series, t0 };
+  const depSlot = Math.max(0, Math.min(95, Math.round(t0 / 15)));
+  current = { main, short, alt, metro, series, t0, depSlot, arriveBy, depDay: clockParts(t0, state.day).day };
+  $("#modeNote").textContent = arriveBy == null ? "" : main ? `To arrive by ${clock(arriveBy)}, leave by ${clock(t0)}${current.depDay !== state.day ? ` (${DAYS[current.depDay]})` : ""} on a typical day.` : "";
   const d = displayed();
   const sig = d ? (d.kind === "metro" ? `m:${d.sa.name}:${d.sb.name}` : d.legs.map(l => l.steps.map(x => x.e).join(",")).join("|")) : "";
   animateRoute = sig !== lastSig; lastSig = sig;
@@ -846,7 +911,7 @@ function render() { renderSummary(); renderMap(); renderChart(); renderSteps(); 
    Summary
    ============================================================ */
 function bestInWindow() {
-  const s = current.series.road, i0 = state.slot;
+  const s = current.series.road, i0 = current.depSlot;
   let bi = i0;
   for (let i = Math.max(0, i0 - 8); i <= Math.min(95, i0 + 8); i++) if (s[i] != null && s[i] < s[bi] - 0.5) bi = i;
   return bi;
@@ -887,13 +952,15 @@ function renderSummary() {
     const saved = c.main.minutes - d.minutes;
     chips = `<span class="chip"><span class="lines">${metroLines(d)}</span>${d.ride.rides.length > 1 ? `${d.ride.rides.length - 1} change` : "No change"}</span>
       <span class="chip"><i style="background:var(--${saved > 0 ? "good" : "warn"})"></i>${saved >= 1 ? `${dur(saved)} quicker than the road` : `${dur(-saved)} slower than the road`}</span>
-      ${isPeak(c.t0 / 60, state.day) ? `<span class="chip">Peak hour: expect crowded trains</span>` : ""}`;
+      <span class="chip">≈ ${metroCostText(metroCost(d, state.vehicle))}</span>
+      ${isPeak(d.depart / 60, state.day) ? `<span class="chip">Peak hour: expect crowded trains</span>` : ""}`;
   } else {
     const steps = d.legs.flatMap(l => l.steps), w = steps.reduce((s, x) => s + x.km, 0) || 1;
     const [bcls, blabel] = band(steps.reduce((s, x) => s + x.mult * x.km, 0) / w || 1);
     const lost = d.minutes - d.free - (d.legs.length - 1) * state.dwell;
     chips = `<span class="chip"><i style="background:var(--${bcls})"></i>${blabel} traffic</span>
       <span class="chip">${lost >= 1 ? `Traffic adds ${dur(lost)} over empty roads` : "Close to empty-road time"}</span>
+      <span class="chip">≈ ${roadCostText(roadCost(d, state.vehicle))}</span>
       ${state.rain ? `<span class="chip"><i style="background:var(--warn)"></i>Rain adjusted</span>` : ""}`;
     if (state.stops.length >= 2 && state.optimise && c.main.asEntered) {
       const gain = c.main.asEntered.minutes - c.main.minutes;
@@ -901,12 +968,15 @@ function renderSummary() {
     }
     const worst = d.legs.flatMap(l => stretches(l.steps)).filter(s => s.lost >= 2).sort((a, b) => b.lost - a.lost).slice(0, 3);
     if (worst.length) losses = `<div class="losses"><div class="label">Where you lose time</div><ul>${worst.map(s => `<li><span class="plus">+${Math.round(s.lost)} min</span><span><b>${esc(s.road)}</b> · ${esc(shortName(nm(s.from)))} → ${esc(shortName(nm(s.to)))}, about ${clock(s.t0)}</span></li>`).join("")}</ul></div>`;
-    const bi = bestInWindow(), gain = c.series.road[state.slot] - c.series.road[bi];
-    callout = bi !== state.slot && gain >= 3
-      ? `<div class="callout"><div class="big">${clock(bi * 15)}</div><p><b>${bi < state.slot ? "Leave earlier" : "Wait a little"}:</b> leaving at ${clock(bi * 15)} takes ${dur(c.series.road[bi])}, about ${dur(gain)} less than at ${clock(c.t0)}.</p><button class="pill-btn" type="button" id="useBest" data-slot="${bi}">Use ${clock(bi * 15)}</button></div>`
+    const bi = bestInWindow(), gain = c.series.road[c.depSlot] - c.series.road[bi];
+    callout = c.arriveBy != null
+      ? `<div class="callout"><div class="big">${clock(c.t0)}</div><p><b>Leave by ${clock(c.t0)}</b> to reach ${esc(nm(IDX[state.to]))} by ${clock(c.arriveBy)} on a typical ${DAYS[state.day]}.${c.metro ? ` By metro, leave by ${clock(c.metro.depart)}.` : ""} Add 10 to 15 minutes if you can't be late.</p><span></span></div>`
+      : bi !== c.depSlot && gain >= 3
+      ? `<div class="callout"><div class="big">${clock(bi * 15)}</div><p><b>${bi < c.depSlot ? "Leave earlier" : "Wait a little"}:</b> leaving at ${clock(bi * 15)} takes ${dur(c.series.road[bi])}, about ${dur(gain)} less than at ${clock(c.t0)}.</p><button class="pill-btn" type="button" id="useBest" data-slot="${bi}">Use ${clock(bi * 15)}</button></div>`
       : `<div class="callout"><div class="big">✓</div><p>${clock(c.t0)} is already the quickest road departure within two hours either side.</p><span></span></div>`;
   }
-  const card = (key, title, r, sub, extra = "") => `<button class="opt ${chosen === key ? "active" : ""}" type="button" data-choose="${key}"><span class="k">${title}${extra}</span><span class="v">${dur(r.minutes)} · ${r.km.toFixed(1)} km</span><span class="s">${sub}</span></button>`;
+  const costOf = r => r.kind === "metro" ? metroCostText(metroCost(r, state.vehicle)) : roadCostText(roadCost(r, state.vehicle));
+  const card = (key, title, r, sub, extra = "") => `<button class="opt ${chosen === key ? "active" : ""}" type="button" data-choose="${key}"><span class="k">${title}${extra}</span><span class="v">${dur(r.minutes)} · ${r.km.toFixed(1)} km</span><span class="s">${sub}</span><span class="cost">≈ ${costOf(r)}${c.arriveBy != null ? ` · leave ${clock(r.depart)}` : ""}</span></button>`;
   let compare = "";
   if (c.short || c.alt || c.metro) {
     const roadBest = c.main.minutes;
@@ -920,7 +990,7 @@ function renderSummary() {
     <div class="sum-top">
       <div style="display:grid;gap:6px;min-width:0">
         <div class="trip-name">${tripName}</div>
-        <div class="meta">${d.km.toFixed(1)} km · leave ${DAYS[state.day]} ${clock(c.t0)} · arrive ${clock(d.arrive)}${isMetro ? "" : ` · avg ${avg.toFixed(0)} km/h`}${state.stops.length && !isMetro ? ` · includes ${dur(state.dwell * state.stops.length)} at stops` : ""}</div>
+        <div class="meta">${d.km.toFixed(1)} km · leave ${DAYS[c.depDay]} ${clock(isMetro ? d.depart : c.t0)} · arrive ${clock(d.arrive)}${isMetro ? "" : ` · avg ${avg.toFixed(0)} km/h`}${state.stops.length && !isMetro ? ` · includes ${dur(state.dwell * state.stops.length)} at stops` : ""}</div>
       </div>
       <div class="eta">${etaHTML(d.minutes)}</div>
     </div>
@@ -930,7 +1000,7 @@ function renderSummary() {
 }
 $("#summary").addEventListener("click", e => {
   const ub = e.target.closest("#useBest");
-  if (ub) { update({ slot: +ub.dataset.slot }, { refit: false, keepChoice: true }); return; }
+  if (ub) { update({ slot: +ub.dataset.slot, mode: "leave" }, { refit: false, keepChoice: true }); return; }
   const b = e.target.closest("[data-choose]");
   if (b) { chosen = b.dataset.choose; autoFit = true; compute(); }
 });
@@ -965,7 +1035,7 @@ function renderMap() {
   const d = current.main ? displayed() : null, isMetro = d && d.kind === "metro";
   if (autoFit) { fit(d ? routePoints(d) : CORE, 0.16); autoFit = false; }
   const u = v => v / scale(); // screen px -> view units
-  const o = opts(state), t0 = state.slot * 15;
+  const o = opts(state), t0 = current.t0;
   const onRoute = new Set(d && !isMetro ? d.legs.flatMap(l => l.steps.map(x => x.e)) : []);
   const zoomed = view.w < 520;
   let h = `<rect x="${view.x - 5000}" y="${view.y - 5000}" width="${view.w + 10000}" height="${view.h + 10000}" fill="var(--map)"/>`;
@@ -1092,11 +1162,11 @@ function renderChart() {
   let h = "";
   for (let v = 0; v <= top; v += step) h += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${v}</text>`;
   h += `<text x="${L - 8}" y="${T - 12}" text-anchor="end" font-size="10" fill="var(--muted)">min</text>`;
-  const w0 = Math.max(0, state.slot - 8), w1 = Math.min(95, state.slot + 8);
+  const DS = current.depSlot, w0 = Math.max(0, DS - 8), w1 = Math.min(95, DS + 8);
   h += `<rect x="${L + w0 * bw}" y="${T}" width="${(w1 - w0 + 1) * bw}" height="${H - T - B}" fill="var(--accent-soft)"/>`;
   road.forEach((v, i) => {
     if (v == null) return;
-    const yy = y(v), sel = i === state.slot;
+    const yy = y(v), sel = i === DS;
     h += `<rect class="bar" data-slot="${i}" x="${f1(L + i * bw + 0.6)}" y="${f1(yy)}" width="${f1(bw - 1.2)}" height="${f1(H - B - yy)}" rx="1.5" fill="${COLOR[ratioBand(v / mn)]}" opacity="${sel || i === bi ? 1 : 0.62}"${sel ? ` stroke="var(--ink)" stroke-width="1.5"` : ""}><title>Leave ${clock(i * 15)}: ${dur(v)} by road${metro[i] != null ? `, ${dur(metro[i])} by metro` : ""}</title></rect>`;
   });
   // Metro as a dashed line, broken where the metro is closed.
@@ -1105,14 +1175,14 @@ function renderChart() {
   metro.forEach((v, i) => { if (v == null) flush(); else seg.push(`${f1(L + i * bw + bw / 2)},${f1(y(v))}`); });
   flush();
   for (let hr = 0; hr <= 21; hr += 3) h += `<text x="${L + hr * 4 * bw}" y="${H - 10}" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${pad(hr)}:00</text>`;
-  const sx = L + state.slot * bw + bw / 2;
-  h += `<text x="${Math.min(W - 60, Math.max(L + 30, sx))}" y="${Math.max(T + 10, y(road[state.slot]) - 8)}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ink)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${dur(road[state.slot])}</text>`;
+  const sx = L + DS * bw + bw / 2;
+  h += `<text x="${Math.min(W - 60, Math.max(L + 30, sx))}" y="${Math.max(T + 10, y(road[DS]) - 8)}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ink)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${dur(road[DS])}</text>`;
   el.innerHTML = h;
   const di = road.indexOf(mn);
   const mv = metro.filter(v => v != null);
   $("#chartNote").textContent = `Road quickest at ${clock(di * 15)} (${dur(mn)}), slowest ${dur(Math.max(...rv))}${mv.length ? ` · metro ${dur(Math.min(...mv))}–${dur(Math.max(...mv))}` : ""}`;
 }
-$("#chart").addEventListener("click", e => { const b = e.target.closest("[data-slot]"); if (b) update({ slot: +b.dataset.slot }, { refit: false, keepChoice: true }); });
+$("#chart").addEventListener("click", e => { const b = e.target.closest("[data-slot]"); if (b) update({ slot: +b.dataset.slot, mode: "leave" }, { refit: false, keepChoice: true }); });
 
 /* ============================================================
    Weekly rhythm heatmap (7 days x half hours 05:00–23:30)
@@ -1130,18 +1200,18 @@ function renderWeek() {
     h += `<text x="${L - 8}" y="${T + d * ch + ch / 2 + 4}" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="${d === state.day ? "var(--ink)" : "var(--muted)"}" font-weight="${d === state.day ? 600 : 500}">${DAYS[d]}</text>`;
     row.forEach((v, j) => {
       if (v == null) return;
-      const s = cols[j], sel = d === state.day && Math.abs(s - state.slot) <= 1;
+      const s = cols[j], sel = d === state.day && Math.abs(s - current.depSlot) <= 1;
       if (!best || v < best.v) best = { v, d, s };
-      h += `<rect class="cell" data-day="${d}" data-slot="${s}" x="${f1(L + j * cw + 0.75)}" y="${f1(T + d * ch + 0.75)}" width="${f1(cw - 1.5)}" height="${f1(ch - 1.5)}" rx="2.5" fill="${COLOR[ratioBand(v / mn)]}" opacity="${0.35 + 0.65 * Math.min(1, (v - mn) / Math.max(1, mx - mn) * 0.6 + 0.4)}"${sel ? ` stroke="var(--ink)" stroke-width="2"` : ""}><title>${DAYS[d]} ${clock(s * 15)}: ${dur(v)}</title></rect>`;
+      h += `<rect class="cell" data-day="${d}" data-slot="${s}" x="${f1(L + j * cw + 0.75)}" y="${f1(T + d * ch + 0.75)}" width="${f1(cw - 1.5)}" height="${f1(ch - 1.5)}" rx="2.5" fill="${COLOR[ratioBand(v / mn)]}" opacity="0.88"${sel ? ` stroke="var(--ink)" stroke-width="2"` : ""}><title>${DAYS[d]} ${clock(s * 15)}: ${dur(v)}</title></rect>`;
     });
   });
   cols.forEach((s, j) => { if (s % 12 === 0) h += `<text x="${f1(L + j * cw)}" y="${H - 8}" font-size="11" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${clock(s * 15)}</text>`; });
   el.innerHTML = h;
-  const weekday = grid.slice(0, 5).map((row, d) => ({ d, v: row[cols.indexOf(state.slot - (state.slot % 2))] })).filter(x => x.v != null).sort((a, b) => a.v - b.v);
-  const tip = weekday.length > 1 && weekday[weekday.length - 1].v - weekday[0].v >= 3 ? ` · at ${clock((state.slot - (state.slot % 2)) * 15)}, ${DAYS[weekday[0].d]} is ${dur(weekday[weekday.length - 1].v - weekday[0].v)} quicker than ${DAYS[weekday[weekday.length - 1].d]}` : "";
+  const weekday = grid.slice(0, 5).map((row, d) => ({ d, v: row[cols.indexOf(current.depSlot - (current.depSlot % 2))] })).filter(x => x.v != null).sort((a, b) => a.v - b.v);
+  const tip = weekday.length > 1 && weekday[weekday.length - 1].v - weekday[0].v >= 3 ? ` · at ${clock((current.depSlot - (current.depSlot % 2)) * 15)}, ${DAYS[weekday[0].d]} is ${dur(weekday[weekday.length - 1].v - weekday[0].v)} quicker than ${DAYS[weekday[weekday.length - 1].d]}` : "";
   $("#weekNote").textContent = `Quickest: ${DAYS[best.d]} ${clock(best.s * 15)} (${dur(best.v)})${tip}`;
 }
-$("#week").addEventListener("click", e => { const c = e.target.closest("[data-slot]"); if (c) update({ day: +c.dataset.day, slot: +c.dataset.slot }, { refit: false, keepChoice: true }); });
+$("#week").addEventListener("click", e => { const c = e.target.closest("[data-slot]"); if (c) update({ day: +c.dataset.day, slot: +c.dataset.slot, mode: "leave" }, { refit: false, keepChoice: true }); });
 
 /* ============================================================
    Directions

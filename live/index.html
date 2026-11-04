@@ -111,6 +111,7 @@ button { font: inherit; cursor: pointer; }
 .opt .v { font-family: var(--font-mono); font-size: 16px; font-variant-numeric: tabular-nums; }
 .opt .s { color: var(--muted); font-size: 12.5px; }
 .opt .win { color: var(--good); font-weight: 600; }
+.opt .cost { font-family: var(--font-mono); font-size: 12.5px; }
 .lines { display: inline-flex; gap: 3px; vertical-align: middle; }
 .lines i { width: 10px; height: 4px; border-radius: 2px; display: inline-block; }
 .losses { display: grid; gap: 6px; }
@@ -235,6 +236,7 @@ footer a { color: var(--accent); }
       </div>
 
       <footer>
+        <p>Fuel estimates assume petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler. Tolls and metro fares come from Google where it has them.</p>
         <p>Trip times, alternatives, stop order and the traffic on each route come from the Google Routes API with traffic-aware routing. The traffic layer on the map is Google's live feed.</p>
         <p>No key handy? The <a href="../index.html">offline Namma Route</a> estimates the same trips with a typical-day traffic model.</p>
       </footer>
@@ -393,10 +395,10 @@ function waypoint(p) {
   return { address: /bengaluru|bangalore/i.test(p.text) ? p.text : p.text + ", Bengaluru, Karnataka" };
 }
 const MASK_FULL = ["routes.duration","routes.staticDuration","routes.distanceMeters","routes.polyline.encodedPolyline","routes.description","routes.routeLabels",
-  "routes.optimizedIntermediateWaypointIndex","routes.travelAdvisory.speedReadingIntervals","routes.legs.duration","routes.legs.staticDuration","routes.legs.distanceMeters",
+  "routes.optimizedIntermediateWaypointIndex","routes.travelAdvisory.speedReadingIntervals","routes.travelAdvisory.tollInfo","routes.legs.duration","routes.legs.staticDuration","routes.legs.distanceMeters",
   "routes.legs.startLocation","routes.legs.endLocation","routes.legs.steps.distanceMeters","routes.legs.steps.staticDuration","routes.legs.steps.navigationInstruction"].join(",");
 const MASK_LITE = "routes.duration,routes.staticDuration,routes.distanceMeters";
-function buildBody(req, departure, { full = true, optimise = req.optimise, alternatives = true, optimal = true } = {}) {
+function buildBody(req, departure, { full = true, optimise = req.optimise, alternatives = true, optimal = true, tolls = true } = {}) {
   const body = {
     origin: waypoint(req.from), destination: waypoint(req.to), travelMode: req.veh,
     routingPreference: optimal ? "TRAFFIC_AWARE_OPTIMAL" : "TRAFFIC_AWARE",
@@ -406,7 +408,7 @@ function buildBody(req, departure, { full = true, optimise = req.optimise, alter
   if (req.stops.length) { body.intermediates = req.stops.map(waypoint); if (optimise && req.stops.length >= 2) body.optimizeWaypointOrder = true; }
   else if (alternatives) body.computeAlternativeRoutes = true;
   if (departure && departure.getTime() > Date.now() + 60 * 1000) body.departureTime = departure.toISOString();
-  if (full) body.extraComputations = ["TRAFFIC_ON_POLYLINE"];
+  if (full) body.extraComputations = tolls ? ["TRAFFIC_ON_POLYLINE", "TOLLS"] : ["TRAFFIC_ON_POLYLINE"];
   return body;
 }
 async function computeRoutes(body, mask) {
@@ -419,10 +421,15 @@ async function computeRoutes(body, mask) {
   if (!res.ok) { const err = new Error(json.error?.message || `Routes API answered ${res.status}`); err.status = res.status; throw err; }
   return json;
 }
-// Some option combinations are refused for TRAFFIC_AWARE_OPTIMAL; retry once with TRAFFIC_AWARE.
+// Some option combinations are refused (toll data, TRAFFIC_AWARE_OPTIMAL with stops). Step down until Google accepts.
 async function routesWithFallback(req, departure, opts, mask) {
-  try { return await computeRoutes(buildBody(req, departure, { ...opts, optimal: true }), mask); }
-  catch (e) { if (e.status === 400 && !/API key|not been used|disabled|address|location/i.test(e.message)) return computeRoutes(buildBody(req, departure, { ...opts, optimal: false }), mask); throw e; }
+  const tries = [{ ...opts, optimal: true, tolls: true }, { ...opts, optimal: true, tolls: false }, { ...opts, optimal: false, tolls: false }];
+  let last;
+  for (const t of tries) {
+    try { return await computeRoutes(buildBody(req, departure, t), mask); }
+    catch (e) { last = e; if (e.status !== 400 || /API key|not been used|disabled|address|location/i.test(e.message)) throw e; }
+  }
+  throw last;
 }
 function friendly(e) {
   const m = e.message || String(e);
@@ -496,7 +503,7 @@ function hotspots(route) {
   });
   return out.filter(h => h.km >= 0.3).sort((x, y) => (y.speed === "TRAFFIC_JAM") - (x.speed === "TRAFFIC_JAM") || y.km - x.km).slice(0, 4);
 }
-const MASK_TRANSIT = ["routes.duration","routes.distanceMeters","routes.polyline.encodedPolyline","routes.legs.startLocation","routes.legs.endLocation",
+const MASK_TRANSIT = ["routes.duration","routes.distanceMeters","routes.travelAdvisory.transitFare","routes.polyline.encodedPolyline","routes.legs.startLocation","routes.legs.endLocation",
   "routes.legs.steps.travelMode","routes.legs.steps.staticDuration","routes.legs.steps.distanceMeters","routes.legs.steps.navigationInstruction.instructions",
   "routes.legs.steps.transitDetails.headsign","routes.legs.steps.transitDetails.stopCount","routes.legs.steps.transitDetails.transitLine.name",
   "routes.legs.steps.transitDetails.transitLine.nameShort","routes.legs.steps.transitDetails.transitLine.color",
@@ -520,6 +527,17 @@ async function checkTransit() {
   forResult.transitLoading = false;
   if (forResult === result) renderSummary();
 }
+
+// ---------- costs ----------
+const PETROL = 103, MILEAGE = { DRIVE: 14, TWO_WHEELER: 45 };
+const money = m => m ? Number(m.units || 0) + (m.nanos || 0) / 1e9 : null;
+const rupees = n => "₹" + Math.round(n).toLocaleString("en-IN");
+function roadCostText(r) {
+  const fuel = (r.distanceMeters || 0) / 1000 / MILEAGE[result.req.veh] * PETROL;
+  const toll = money((r.travelAdvisory?.tollInfo?.estimatedPrice || []).find(p => p.currencyCode === "INR"));
+  return `≈ ${rupees(fuel)} fuel${toll ? ` + ${rupees(toll)} toll` : r.travelAdvisory?.tollInfo ? " + toll" : ""}`;
+}
+const fareText = t => { const f = money(t.travelAdvisory?.transitFare); return f ? `${rupees(f)} fare` : ""; };
 
 // ---------- render ----------
 const isTransit = () => selected === "transit" && result.transit && result.transit.d;
@@ -549,7 +567,8 @@ function renderSummary() {
     const gain = road.d - T.d;
     chips = `<span class="chip">${rides(T).map(x => `<i style="background:${esc(x.color)}"></i>${esc(x.name)}`).join(" → ") || "Walking only"}</span>
       <span class="chip"><i style="background:var(--${gain > 0 ? "good" : "warn"})"></i>${gain >= 60 ? dur(gain) + " quicker than driving" : gain > -60 ? "About the same as driving" : dur(-gain) + " slower than driving"}</span>
-      <span class="chip">Walking ${dur(walkSecs(T))}</span>`;
+      <span class="chip">Walking ${dur(walkSecs(T))}</span>
+      ${fareText(T) ? `<span class="chip">${fareText(T)}</span>` : ""}`;
   } else {
     const delay = Math.max(0, r.d - r.s), [cls, lab] = band(r.s ? r.d / r.s : 1);
     const ord = stopOrder(r), reordered = req.stops.length >= 2 && ord.some((v, i) => v !== i);
@@ -557,6 +576,7 @@ function renderSummary() {
     chips = `<span class="chip"><i style="background:var(--${cls})"></i>${lab} traffic</span>
       <span class="chip">${delay >= 60 ? "Traffic adds " + dur(delay) + " over empty roads" : "Roads are close to clear"}</span>
       <span class="chip">${req.when === "later" ? "Predicted traffic" : "Live traffic · checked " + istClock(result.at)}</span>
+      <span class="chip">${roadCostText(r)}</span>
       ${req.veh === "TWO_WHEELER" ? `<span class="chip">Two-wheeler routing</span>` : ""}
       ${req.stops.length >= 2 && req.optimise ? `<span class="chip"><i style="background:var(--good)"></i>${reordered ? "Stops reordered for the fastest trip" : "Your stop order is already the fastest"}</span>` : ""}`;
     const hs = hotspots(r);
@@ -565,9 +585,9 @@ function renderSummary() {
   const cards = result.routes.map(x => {
     const title = x.idx === result.fastest ? "Fastest by road" : `Road option ${x.idx + 1}`;
     const more = x.idx === result.fastest ? "" : ` · +${dur(x.d - road.d)}`;
-    return `<button class="opt ${x.idx === selected ? "active" : ""}" type="button" data-route="${x.idx}"><span class="k">${title}</span><span class="v">${dur(x.d)} · ${km(x.distanceMeters || 0)}</span><span class="s">${x.description ? "via " + esc(x.description) : "Google route"}${more}</span></button>`;
+    return `<button class="opt ${x.idx === selected ? "active" : ""}" type="button" data-route="${x.idx}"><span class="k">${title}</span><span class="v">${dur(x.d)} · ${km(x.distanceMeters || 0)}</span><span class="s">${x.description ? "via " + esc(x.description) : "Google route"}${more}</span><span class="cost">${roadCostText(x)}</span></button>`;
   });
-  if (T && T.d) cards.push(`<button class="opt ${transit ? "active" : ""}" type="button" data-route="transit"><span class="k">${T.railOnly ? "Namma Metro" : "Public transport"} <span class="lines">${rides(T).map(x => `<i style="background:${esc(x.color)}"></i>`).join("")}</span></span><span class="v">${dur(T.d)}</span><span class="s">${rides(T).map(x => esc(x.name)).join(" → ") || "Walk"}${T.d < road.d - 60 ? ` · <span class="win">saves ${dur(road.d - T.d)}</span>` : ""}</span></button>`);
+  if (T && T.d) cards.push(`<button class="opt ${transit ? "active" : ""}" type="button" data-route="transit"><span class="k">${T.railOnly ? "Namma Metro" : "Public transport"} <span class="lines">${rides(T).map(x => `<i style="background:${esc(x.color)}"></i>`).join("")}</span></span><span class="v">${dur(T.d)}</span><span class="s">${rides(T).map(x => esc(x.name)).join(" → ") || "Walk"}${T.d < road.d - 60 ? ` · <span class="win">saves ${dur(road.d - T.d)}</span>` : ""}</span>${fareText(T) ? `<span class="cost">≈ ${fareText(T)}</span>` : ""}</button>`);
   let metroBtn = "";
   if (!req.stops.length) {
     if (result.transitLoading) metroBtn = `<span class="note">Checking the metro…</span>`;

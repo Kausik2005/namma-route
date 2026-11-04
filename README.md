@@ -13,6 +13,9 @@ A Bengaluru commute planner that answers three questions: which road, which hour
 - **When should you leave?** Trip time for every 15-minute departure, with the metro alternative drawn on top.
 - **Your week on this trip:** a grid of every day and half hour, to pick office days and hours.
 - **Where you lose time:** the stretches that cost you the most (offline), or the slow and jammed stretches Google reports, named after the nearest landmark (live).
+- **Arrive by:** set when you need to be there and get the latest departure by road and by metro.
+- **Trip cost:** fuel and tolls for driving, metro fare plus auto fare for the metro option.
+- **Saved commute:** one tap for the trip to work and the trip back home.
 - **Multiple stops:** up to 6 stops (offline) or 8 (live), put in the fastest order. Also car or two-wheeler, avoid tolls, rain mode, and handoff to Google Maps.
 
 ## Run the live version

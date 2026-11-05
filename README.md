@@ -4,11 +4,12 @@ A Bengaluru commute planner that answers three questions: which road, which hour
 
 | Page | Data | Needs |
 | --- | --- | --- |
-| `index.html` | Built-in model of ~80 junctions, the arterial roads and the Purple, Green and Yellow metro lines, with a typical-day traffic model | Nothing; works offline |
+| `index.html` | Built-in model of ~110 junctions (Nelamangala to Hoskote, Bidadi to Attibele), the arterial roads and NICE Road, and the Purple, Green and Yellow metro lines (Pink and Blue optional), with a typical-day traffic model | Nothing; works offline |
 | `live/index.html` | Google Routes API (live and predicted traffic, transit) and Maps JavaScript API (live traffic layer) | Your Google Maps API key |
 
 ## Features
 - **Fastest route** that accounts for when you leave: morning traffic toward the tech corridors and evening traffic away from them, lighter weekends, and known bottlenecks like Silk Board, Tin Factory and Hebbal.
+- **Lines being built:** an optional switch adds the Pink Line (Kalena Agrahara–Nagawara) and Blue Line (Silk Board–KR Puram–Airport) to see how they would change your trip.
 - **Namma Metro vs road:** door-to-door metro trips, including the walk or auto to and from the station, line changes at Majestic and RV Road, and the wait for the next train, compared with driving.
 - **When should you leave?** Trip time for every 15-minute departure, with the metro alternative drawn on top.
 - **Your week on this trip:** a grid of every day and half hour, to pick office days and hours.

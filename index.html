@@ -15,7 +15,7 @@
   --accent: #6a3d9a; --accent-soft: #efe7f8; --accent-ink: #ffffff;
   --road: #c3c8c0; --water: #cddfe9; --park: #d8e6cc; --map: #f8f9f6;
   --good: #2c8548; --warn: #c3860c; --bad: #c8432b; --worst: #8a1d22;
-  --m-purple: #8a4bbd; --m-green: #2f9a56; --m-yellow: #d9a514;
+  --m-purple: #8a4bbd; --m-green: #2f9a56; --m-yellow: #d9a514; --m-pink: #d6528f; --m-blue: #2f74c8;
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -26,7 +26,7 @@
     --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
     --road: #3a444d; --water: #1b3140; --park: #1d3022; --map: #151b21;
     --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
-    --m-purple: #b07ee0; --m-green: #4cc27a; --m-yellow: #f0c23c;
+    --m-purple: #b07ee0; --m-green: #4cc27a; --m-yellow: #f0c23c; --m-pink: #f07fb2; --m-blue: #6aa8f0;
     color-scheme: dark;
   }
 }
@@ -35,7 +35,7 @@
   --accent: #b78de8; --accent-soft: #2b2338; --accent-ink: #1a1224;
   --road: #3a444d; --water: #1b3140; --park: #1d3022; --map: #151b21;
   --good: #4fbf72; --warn: #e2a63c; --bad: #ef6b50; --worst: #ff8a8a;
-  --m-purple: #b07ee0; --m-green: #4cc27a; --m-yellow: #f0c23c;
+  --m-purple: #b07ee0; --m-green: #4cc27a; --m-yellow: #f0c23c; --m-pink: #f07fb2; --m-blue: #6aa8f0;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -212,8 +212,9 @@ footer p { margin: 0 0 6px; }
           <label><input type="radio" name="veh" value="car" checked><span>Car / cab</span></label>
           <label><input type="radio" name="veh" value="bike"><span>Two-wheeler</span></label>
         </div>
-        <label class="check"><input type="checkbox" id="tolls"><span>Avoid tolls<small>Skips the Electronic City Elevated Expressway and the NH 44 airport toll.</small></span></label>
+        <label class="check"><input type="checkbox" id="tolls"><span>Avoid tolls<small>Skips the Electronic City Elevated Expressway, NICE Road and the NH 44 airport toll.</small></span></label>
         <label class="check"><input type="checkbox" id="rain"><span>It's raining<small>Slower everywhere, much slower at underpasses that flood (Silk Board, Bellandur, Hebbal, KR Puram).</small></span></label>
+        <label class="check"><input type="checkbox" id="upcoming"><span>Include metro lines being built<small>Adds the Pink Line (Kalena Agrahara–Nagawara) and Blue Line (Silk Board–KR Puram–Airport). Check BMRCL for which sections are open.</small></span></label>
       </div>
     </aside>
 
@@ -257,10 +258,10 @@ footer p { margin: 0 0 6px; }
       </section>
 
       <footer>
-        <p>Roads: a simplified network of about 80 junctions and the arterial roads between them (ORR, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd and others). Positions are approximate and road lengths are estimated.</p>
+        <p>Roads: a simplified network of about 110 junctions, from Nelamangala and Bidadi to Hoskote and Attibele, and the arterial roads between them (ORR, NICE Road, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd, Sarjapur Rd and others). Positions are approximate and road lengths are estimated.</p>
         <p>Traffic: a typical-day model, not live data. It has morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks.</p>
-        <p>Costs are rough guides: petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler, Electronic City Elevated Expressway toll about ₹70 (₹30 on two wheels), NH 44 airport toll about ₹125 for cars, autos at ₹36 for the first 2 km then ₹18 a km, and BMRCL distance fares from ₹10 to ₹90.</p>
-        <p>Metro: the Purple, Green and Yellow lines with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
+        <p>Costs are rough guides: petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler, Electronic City Elevated Expressway toll about ₹70 (₹30 on two wheels), NH 44 airport toll about ₹125 for cars, NICE Road about ₹90 (₹35 on two wheels), autos at ₹36 for the first 2 km then ₹18 a km, and BMRCL distance fares from ₹10 to ₹90.</p>
+        <p>Metro: the Purple, Green and Yellow lines, plus the Pink and Blue lines when you include lines being built, with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
       </footer>
     </main>
   </div>
@@ -353,6 +354,34 @@ const RAW_NODES = [
   ["sumanahalli","Sumanahalli",12.9880,77.5045,"West",0],
   ["rrnagar","RR Nagar",12.9270,77.5150,"West",1],
   ["kengeri","Kengeri",12.9080,77.4850,"West",1],
+  ["rtnagar","RT Nagar",13.0220,77.5960,"North",0],
+  ["kodigehalli","Kodigehalli",13.0560,77.5960,"North",0],
+  ["sahakaranagar","Sahakara Nagar",13.0630,77.5870,"North",0],
+  ["vidyaranyapura","Vidyaranyapura",13.0770,77.5590,"North",0],
+  ["banaswadi","Banaswadi",13.0130,77.6480,"North",0],
+  ["horamavu","Horamavu",13.0230,77.6600,"North",0],
+  ["devanahalli","Devanahalli",13.2470,77.7110,"North",0],
+  ["cvramannagar","CV Raman Nagar",12.9850,77.6630,"East",0],
+  ["kadugodi","Kadugodi",12.9960,77.7600,"East",0],
+  ["panathur","Panathur",12.9370,77.7150,"East",0],
+  ["dommasandra","Dommasandra",12.8830,77.7540,"East",0],
+  ["sarjapur","Sarjapur",12.8600,77.7860,"East",1],
+  ["egl","Embassy Golf Links",12.9520,77.6470,"East",0],
+  ["hoskote","Hoskote",13.0700,77.7980,"East",1],
+  ["hulimavu","Hulimavu",12.8770,77.5980,"South",0],
+  ["gottigere","Gottigere",12.8560,77.5890,"South",0],
+  ["begur","Begur",12.8770,77.6260,"South",0],
+  ["kudlugate","Kudlu Gate",12.8925,77.6290,"South",0],
+  ["bommasandra","Bommasandra",12.8170,77.6900,"South",0],
+  ["chandapura","Chandapura",12.8000,77.7000,"South",0],
+  ["attibele","Attibele",12.7790,77.7700,"South",1],
+  ["uttarahalli","Uttarahalli",12.9070,77.5470,"South",0],
+  ["thalaghattapura","Thalaghattapura",12.8710,77.5385,"South",0],
+  ["basaveshwaranagar","Basaveshwaranagar",12.9930,77.5390,"West",0],
+  ["kamakshipalya","Kamakshipalya",12.9850,77.5280,"West",0],
+  ["nandini","Nandini Layout",13.0120,77.5370,"West",0],
+  ["nelamangala","Nelamangala",13.0970,77.3930,"West",1],
+  ["bidadi","Bidadi",12.7970,77.3880,"West",1],
 ];
 // a, b, class, bottleneck severity (0-1), road name, flags (t = toll, f = floods in rain)
 const RAW_EDGES = [
@@ -400,7 +429,6 @@ const RAW_EDGES = [
   ["forum","madiwala","arterial",.75,"Hosur Rd"],
   ["madiwala","silkboard","arterial",.9,"Hosur Rd","f"],
   ["btm","madiwala","city",.5,"BTM Main Rd"],
-  ["sonyworld","domlur","main",.6,"Intermediate Ring Rd"],
   ["sonyworld","agara","main",.6,"Sarjapur Rd"],
   ["silkboard","btm","arterial",.9,"Outer Ring Rd"],
   ["btm","jayadeva","arterial",.75,"Outer Ring Rd"],
@@ -425,20 +453,16 @@ const RAW_EDGES = [
   ["iblur","agara","arterial",.8,"Outer Ring Rd"],
   ["agara","hsr","arterial",.7,"Outer Ring Rd"],
   ["hsr","silkboard","arterial",.9,"Outer Ring Rd","f"],
-  ["hsr","bommanahalli","city",.5,"Kudlu Gate Rd"],
   ["silkboard","bommanahalli","arterial",.8,"Hosur Rd"],
-  ["bommanahalli","hosaroad","arterial",.7,"Hosur Rd"],
   ["hosaroad","ecity","arterial",.65,"Hosur Rd"],
   ["silkboard","ecity","xway",.15,"Electronic City Elevated Expressway","t"],
   ["jayadeva","arekere","arterial",.75,"Bannerghatta Rd"],
-  ["arekere","bommanahalli","city",.5,"Hulimavu–Begur Rd"],
   ["jpnagar","arekere","city",.45,"Puttenahalli Main Rd"],
   ["banashankari","konanakunte","arterial",.6,"Kanakapura Rd"],
   ["iblur","wipro","arterial",.75,"Sarjapur Rd"],
   ["wipro","carmelaram","arterial",.6,"Sarjapur Rd"],
   ["bellandur","wipro","city",.55,"Haralur Rd"],
   ["carmelaram","varthur","city",.4,"Gunjur Rd"],
-  ["kadubeesanahalli","varthur","city",.55,"Panathur Rd"],
   ["marathahalli","kundalahalli","arterial",.8,"ITPL Main Rd"],
   ["kundalahalli","itpl","main",.6,"ITPL Main Rd"],
   ["marathahalli","varthur","arterial",.7,"Varthur Rd"],
@@ -465,16 +489,12 @@ const RAW_EDGES = [
   ["rajajinagar","vijayanagar","main",.5,"Chord Rd"],
   ["rajajinagar","tollgate","city",.4,"West of Chord Rd"],
   ["tollgate","vijayanagar","city",.4,"Vijayanagar Main Rd"],
-  ["tollgate","sumanahalli","arterial",.5,"Magadi Rd"],
   ["vijayanagar","nagarbhavi","main",.45,"Chandra Layout Rd"],
   ["vijayanagar","sirsi","city",.45,"Hosahalli Rd"],
   ["sirsi","nayandahalli","arterial",.6,"Mysore Rd"],
   ["nayandahalli","rrnagar","arterial",.5,"Mysore Rd"],
   ["rrnagar","kengeri","arterial",.4,"Mysore Rd"],
-  ["hebbal","jakkur","xway",.5,"Bellary Rd (NH 44)"],
   ["jakkur","yelahanka","xway",.4,"Bellary Rd (NH 44)"],
-  ["yelahanka","sadahalli","xway",.2,"Bellary Rd (NH 44)"],
-  ["sadahalli","kia","xway",.1,"Airport Rd","t"],
   ["nagawara","manyata","city",.65,"Manyata Tech Park Rd"],
   ["manyata","thanisandra","main",.6,"Thanisandra Main Rd"],
   ["thanisandra","jakkur","city",.4,"Sampigehalli Rd"],
@@ -483,7 +503,62 @@ const RAW_EDGES = [
   ["kothanur","bagalur","main",.45,"Hennur–Bagalur Rd"],
   ["bagalur","kia","main",.3,"Bagalur–Airport Rd"],
   ["frazer","hennur","main",.6,"Hennur Rd"],
-  ["frazer","ramamurthy","city",.5,"Banaswadi Main Rd"],
+  ["hebbal","kodigehalli","xway",.5,"Bellary Rd (NH 44)"],
+  ["kodigehalli","jakkur","xway",.45,"Bellary Rd (NH 44)"],
+  ["yelahanka","sadahalli","xway",.2,"Bellary Rd (NH 44)","t"],
+  ["sadahalli","kia","xway",.1,"Airport Rd"],
+  ["sadahalli","devanahalli","xway",.1,"Bellary Rd (NH 44)"],
+  ["devanahalli","kia","main",.2,"Devanahalli–Airport Rd"],
+  ["kodigehalli","sahakaranagar","city",.4,"Sahakara Nagar Main Rd"],
+  ["sahakaranagar","jakkur","city",.4,"Jakkur Rd"],
+  ["sahakaranagar","vidyaranyapura","city",.4,"Doddabommasandra Rd"],
+  ["vidyaranyapura","belcircle","main",.5,"Vidyaranyapura Main Rd"],
+  ["mekhri","rtnagar","city",.5,"CBI Rd"],
+  ["rtnagar","hebbal","city",.5,"RT Nagar Main Rd"],
+  ["frazer","banaswadi","city",.5,"Banaswadi Main Rd"],
+  ["banaswadi","ramamurthy","city",.5,"Banaswadi Main Rd"],
+  ["banaswadi","hennur","city",.5,"Kammanahalli Main Rd"],
+  ["ramamurthy","horamavu","city",.5,"Horamavu Main Rd"],
+  ["horamavu","hennur","city",.5,"Horamavu Agara Rd"],
+  ["hal","cvramannagar","city",.6,"Suranjan Das Rd"],
+  ["cvramannagar","tinfactory","city",.6,"Suranjan Das Rd"],
+  ["hopefarm","kadugodi","main",.5,"Channasandra Main Rd"],
+  ["kadubeesanahalli","panathur","city",.55,"Panathur Rd"],
+  ["panathur","varthur","city",.5,"Panathur Rd"],
+  ["carmelaram","dommasandra","arterial",.55,"Sarjapur Rd"],
+  ["dommasandra","sarjapur","main",.4,"Sarjapur Rd"],
+  ["sonyworld","egl","main",.6,"Intermediate Ring Rd"],
+  ["egl","domlur","main",.6,"Intermediate Ring Rd"],
+  ["egl","hal","city",.5,"Wind Tunnel Rd"],
+  ["krpuram","hoskote","arterial",.55,"Old Madras Rd (NH 75)"],
+  ["arekere","hulimavu","arterial",.65,"Bannerghatta Rd"],
+  ["hulimavu","gottigere","arterial",.5,"Bannerghatta Rd"],
+  ["hulimavu","begur","city",.5,"Hulimavu–Begur Rd"],
+  ["begur","bommanahalli","city",.5,"Begur Rd"],
+  ["begur","hosaroad","city",.45,"Begur–Koppa Rd"],
+  ["bommanahalli","kudlugate","arterial",.7,"Hosur Rd"],
+  ["kudlugate","hosaroad","arterial",.7,"Hosur Rd"],
+  ["hsr","kudlugate","city",.5,"Kudlu Gate Rd"],
+  ["ecity","bommasandra","arterial",.55,"Hosur Rd"],
+  ["bommasandra","chandapura","arterial",.5,"Hosur Rd"],
+  ["chandapura","attibele","arterial",.45,"Hosur Rd"],
+  ["hosakere","uttarahalli","city",.45,"Uttarahalli Main Rd"],
+  ["uttarahalli","konanakunte","city",.45,"Subramanyapura Rd"],
+  ["konanakunte","thalaghattapura","arterial",.45,"Kanakapura Rd"],
+  ["rajajinagar","basaveshwaranagar","city",.45,"Basaveshwaranagar Main Rd"],
+  ["basaveshwaranagar","kamakshipalya","city",.45,"Kamakshipalya Main Rd"],
+  ["tollgate","kamakshipalya","arterial",.5,"Magadi Rd"],
+  ["kamakshipalya","sumanahalli","arterial",.5,"Magadi Rd"],
+  ["goragunte","nandini","city",.45,"Nandini Layout Main Rd"],
+  ["nandini","basaveshwaranagar","city",.4,"Basaveshwaranagar 80 Ft Rd"],
+  ["eighthmile","nelamangala","xway",.3,"Tumkur Rd (NH 48)"],
+  ["kengeri","bidadi","arterial",.35,"Mysore Rd (NH 275)"],
+  ["ecity","thalaghattapura","xway",.1,"NICE Rd","t"],
+  ["thalaghattapura","kengeri","xway",.1,"NICE Rd","t"],
+  ["kengeri","eighthmile","xway",.1,"NICE Rd","t"],
+  ["sarjapur","attibele","main",.3,"Sarjapur–Attibele Rd"],
+  ["kadugodi","hoskote","main",.35,"Whitefield–Hoskote Rd"],
+  ["dommasandra","varthur","city",.4,"Varthur–Sarjapur Rd"],
 ];
 // Lakes and parks for orientation: lat, lon, rx km, ry km, rotation deg
 const LAKES = [[12.9350,77.6610,1.6,.55,-25],[12.9830,77.6205,.35,.3,0],[13.0455,77.5885,.5,.35,10],[12.9100,77.6150,.55,.4,0],[12.9230,77.6400,.35,.25,0],[12.9450,77.7330,.9,.4,-15],[13.0090,77.5740,.25,.18,0],[13.0950,77.5870,.6,.35,20]];
@@ -512,7 +587,21 @@ const METRO = [
     ["Bommanahalli",12.9070,77.6240],["Hongasandra",12.8985,77.6255],["Kudlu Gate",12.8925,77.6290],["Singasandra",12.8840,77.6390],["Hosa Road",12.8780,77.6460],
     ["Beratena Agrahara",12.8670,77.6530],["Electronic City",12.8520,77.6630],["Konappana Agrahara",12.8460,77.6690],["Huskur Road",12.8380,77.6750],["Hebbagodi",12.8300,77.6800],
     ["Bommasandra",12.8170,77.6900]] },
+  // Under construction: only used when "Include metro lines being built" is ticked.
+  { id: "pink", name: "Pink Line", color: "var(--m-pink)", run: 2.2, headway: [6, 8], upcoming: true, stations: [
+    ["Kalena Agrahara",12.8610,77.5890],["Hulimavu",12.8770,77.5980],["IIM Bangalore",12.8950,77.6000],["JP Nagar 4th Phase",12.9030,77.5980],["Jayadeva Hospital",12.9180,77.5995],
+    ["Tavarekere",12.9240,77.6050],["Dairy Circle",12.9385,77.6005],["Lakkasandra",12.9450,77.6000],["Langford Town",12.9560,77.6020],["Rashtriya Military School",12.9640,77.6060],
+    ["MG Road",12.9755,77.6067],["Shivajinagar",12.9857,77.6050],["Cantonment",12.9935,77.5985],["Pottery Town",13.0000,77.6080],["Tannery Road",13.0080,77.6130],
+    ["Venkateshpura",13.0200,77.6200],["Kadugundanahalli",13.0300,77.6230],["Nagawara",13.0420,77.6230]] },
+  { id: "blue", name: "Blue Line", color: "var(--m-blue)", run: 2.3, headway: [6, 8], upcoming: true, stations: [
+    ["Central Silk Board",12.9175,77.6235],["HSR Layout",12.9150,77.6440],["Agara Lake",12.9240,77.6485],["Ibbaluru",12.9225,77.6640],["Bellandur",12.9280,77.6800],
+    ["Kadubeesanahalli",12.9385,77.6950],["Kodibeesanahalli",12.9480,77.6990],["Marathahalli",12.9560,77.7010],["ISRO",12.9660,77.7010],["Doddanekundi",12.9760,77.6990],
+    ["DRDO Sports Complex",12.9860,77.6970],["Saraswathi Nagar",12.9940,77.6900],["KR Puram",13.0006,77.6754],["Kasturi Nagar",13.0060,77.6600],["Horamavu",13.0230,77.6560],
+    ["HRBR Layout",13.0280,77.6450],["Kalyan Nagar",13.0300,77.6400],["HBR Layout",13.0360,77.6320],["Nagawara",13.0420,77.6230],["Veerannapalya",13.0440,77.6110],
+    ["Kempapura",13.0450,77.6000],["Hebbal",13.0390,77.5960],["Kodigehalli",13.0560,77.5960],["Jakkur Cross",13.0730,77.5990],["Yelahanka",13.0980,77.5970],
+    ["Bagalur Cross",13.1300,77.6100],["Bettahalasur",13.1500,77.6250],["Doddajala",13.1700,77.6450],["Airport City",13.1900,77.6800],["KIA Terminals",13.1986,77.7066]] },
 ];
+const lineOn = L => !L.upcoming || state.upcoming;
 
 /* ============================================================
    Geometry and graph
@@ -664,8 +753,8 @@ const wait = (L, tMin, day) => { const { h, day: d } = clockParts(tMin, day); re
 // Fewest-minutes ride between two station names, boarding at clock time t.
 function metroRide(fromName, toName, t, day) {
   const n = ST.length, best = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n);
-  ST_BY_NAME.get(fromName).forEach(k => { best[k] = wait(ST[k].line, t, day); });
-  const goal = new Set(ST_BY_NAME.get(toName));
+  ST_BY_NAME.get(fromName).forEach(k => { if (lineOn(ST[k].line)) best[k] = wait(ST[k].line, t, day); });
+  const goal = new Set(ST_BY_NAME.get(toName).filter(k => lineOn(ST[k].line)));
   let hit = -1;
   for (;;) {
     let u = -1, bv = Infinity;
@@ -675,7 +764,7 @@ function metroRide(fromName, toName, t, day) {
     done[u] = 1;
     const s = ST[u], nb = [];
     for (const di of [-1, 1]) { const k = ST_INDEX.get(`${s.line.id}:${s.i + di}`); if (k !== undefined) nb.push([k, s.line.run]); }
-    ST_BY_NAME.get(s.name).forEach(k => { if (k !== u) nb.push([k, TRANSFER_WALK + wait(ST[k].line, t + best[u], day)]); });
+    ST_BY_NAME.get(s.name).forEach(k => { if (k !== u && lineOn(ST[k].line)) nb.push([k, TRANSFER_WALK + wait(ST[k].line, t + best[u], day)]); });
     for (const [k, c] of nb) if (!done[k] && best[u] + c < best[k]) { best[k] = best[u] + c; prev[k] = u; }
   }
   if (hit < 0) return null;
@@ -696,7 +785,7 @@ function access(place, station, tMin, o) {
   const ride = d * 1.3 / SPEED[o.vehicle].city * 60 * slow;
   return { mode: o.vehicle === "bike" ? "bike" : "auto", km: d, minutes: ride + (o.vehicle === "bike" ? 3 : 4) };
 }
-const nearestStations = (place, k = 3, maxKm = 6.5) => STATIONS.map(s => ({ s, d: km(place, s) })).filter(x => x.d <= maxKm).sort((a, b) => a.d - b.d).slice(0, k).map(x => x.s);
+const nearestStations = (place, k = 3, maxKm = 6.5) => STATIONS.filter(s => s.lines.some(lineOn)).map(s => ({ s, d: km(place, s) })).filter(x => x.d <= maxKm).sort((a, b) => a.d - b.d).slice(0, k).map(x => x.s);
 function metroTrip(fromId, toId, t0, o) {
   const A = NODES[IDX[fromId]], B = NODES[IDX[toId]];
   if (A === B) return null;
@@ -720,7 +809,7 @@ const rideKm = ride => ride.rides.reduce((s, r) => s + r.path.slice(1).reduce((a
    Costs (rupees, rough Bengaluru figures)
    ============================================================ */
 const PETROL = 103, MILEAGE = { car: 14, bike: 45 };
-const TOLL_FEE = { "Electronic City Elevated Expressway": { car: 70, bike: 30 }, "Airport Rd": { car: 125, bike: 0 } };
+const TOLL_FEE = { "Electronic City Elevated Expressway": { car: 70, bike: 30 }, "Bellary Rd (NH 44)": { car: 125, bike: 0 }, "NICE Rd": { car: 90, bike: 35 } };
 const autoFare = roadKm => Math.round(roadKm <= 2 ? 36 : 36 + (roadKm - 2) * 18);
 const METRO_FARE = [[2, 10], [4, 20], [6, 30], [8, 40], [10, 50], [15, 60], [20, 70], [25, 80]];
 const metroFare = rideKm => (METRO_FARE.find(([d]) => rideKm <= d) || [0, 90])[1];
@@ -744,7 +833,7 @@ const metroCostText = c => c.access ? `${rupees(c.fare)} fare + ${rupees(c.acces
    State
    ============================================================ */
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DEFAULT = { from: "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from", mode: "leave", commute: null };
+const DEFAULT = { from: "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from", mode: "leave", commute: null, upcoming: false };
 const STORE = "namma-route";
 let state = { ...DEFAULT };
 try {
@@ -792,7 +881,7 @@ function syncControls() {
   document.querySelectorAll('input[name="day"]').forEach(r => { r.checked = +r.value === state.day; });
   document.querySelectorAll('input[name="veh"]').forEach(r => { r.checked = r.value === state.vehicle; });
   document.querySelectorAll('input[name="tap"]').forEach(r => { r.checked = r.value === state.tap; });
-  $("#tolls").checked = state.tolls; $("#rain").checked = state.rain; $("#optimise").checked = state.optimise; $("#dwell").value = state.dwell;
+  $("#tolls").checked = state.tolls; $("#upcoming").checked = state.upcoming; $("#rain").checked = state.rain; $("#optimise").checked = state.optimise; $("#dwell").value = state.dwell;
   $("#stops").innerHTML = state.stops.map((id, i) => `<div class="field"><span class="pin stop" aria-hidden="true">${i + 1}</span><select data-stop="${i}" id="stop-${i}" aria-label="Stop ${i + 1}">${OPTIONS}</select><button class="icon-btn" type="button" data-remove="${i}" aria-label="Remove stop ${i + 1}">×</button></div>`).join("");
   state.stops.forEach((id, i) => { $(`#stop-${i}`).value = id; });
   const full = state.stops.length >= 6;
@@ -834,6 +923,7 @@ document.querySelectorAll('input[name="veh"]').forEach(r => r.addEventListener("
 document.querySelectorAll('input[name="tap"]').forEach(r => r.addEventListener("change", () => { state.tap = r.value; save(); }));
 $("#tolls").addEventListener("change", e => update({ tolls: e.target.checked }));
 $("#rain").addEventListener("change", e => update({ rain: e.target.checked }, { refit: false, keepChoice: true }));
+$("#upcoming").addEventListener("change", e => update({ upcoming: e.target.checked }, { refit: false, keepChoice: true }));
 $("#now").addEventListener("click", () => {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map(x => [x.type, x.value]));
   update({ day: Math.max(0, DAYS.indexOf(p.weekday)), slot: Math.min(95, Math.round((+p.hour * 60 + +p.minute) / 15)) }, { refit: false, keepChoice: true });
@@ -843,7 +933,7 @@ $("#now").addEventListener("click", () => {
    Compute
    ============================================================ */
 const seriesCache = new Map();
-function tripKey() { return JSON.stringify([state.from, state.to, state.stops, state.vehicle, state.tolls, state.rain, state.optimise, state.dwell]); }
+function tripKey() { return JSON.stringify([state.from, state.to, state.stops, state.vehicle, state.tolls, state.rain, state.optimise, state.dwell, state.upcoming]); }
 // Road trip time (and metro alternative) for each 15-minute slot of a day, keeping the stop order fixed.
 function daySeries(day, order, withMetro = true) {
   const key = `${tripKey()}|${day}|${order.join()}|${withMetro}`;
@@ -950,7 +1040,8 @@ function renderSummary() {
   let chips = "", losses = "", callout = "";
   if (isMetro) {
     const saved = c.main.minutes - d.minutes;
-    chips = `<span class="chip"><span class="lines">${metroLines(d)}</span>${d.ride.rides.length > 1 ? `${d.ride.rides.length - 1} change` : "No change"}</span>
+    const usesUpcoming = d.ride.rides.some(r => r.line.upcoming);
+    chips = `${usesUpcoming ? `<span class="chip"><i style="background:var(--warn)"></i>Uses a line still being built</span>` : ""}<span class="chip"><span class="lines">${metroLines(d)}</span>${d.ride.rides.length > 1 ? `${d.ride.rides.length - 1} change` : "No change"}</span>
       <span class="chip"><i style="background:var(--${saved > 0 ? "good" : "warn"})"></i>${saved >= 1 ? `${dur(saved)} quicker than the road` : `${dur(-saved)} slower than the road`}</span>
       <span class="chip">≈ ${metroCostText(metroCost(d, state.vehicle))}</span>
       ${isPeak(d.depart / 60, state.day) ? `<span class="chip">Peak hour: expect crowded trains</span>` : ""}`;
@@ -1048,12 +1139,12 @@ function renderMap() {
     h += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${COLOR[cls]}" stroke-width="${WIDTH[E.cls]}" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="${dim ? 0.32 : 0.85}"${E.toll ? ` stroke-dasharray="6 3"` : ""}><title>${esc(E.road)}: ${lab.toLowerCase()} traffic at ${clock(t0)}</title></line>`;
   });
   // Metro lines drawn as rails: line colour with a dashed centre.
-  METRO.forEach(L => {
+  METRO.filter(lineOn).forEach(L => {
     const pts = L.stations.map(([, lat, lon]) => `${f1(px({ lon }))},${f1(py({ lat }))}`).join(" ");
     const op = isMetro ? 0.35 : 0.55;
-    h += `<polyline points="${pts}" fill="none" stroke="${L.color}" stroke-width="3.2" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="${op}"/><polyline points="${pts}" fill="none" stroke="var(--map)" stroke-width="1" stroke-dasharray="3 4" vector-effect="non-scaling-stroke" opacity="${op}"/>`;
+    h += `<polyline points="${pts}" fill="none" stroke="${L.color}" stroke-width="3.2" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="${op}"${L.upcoming ? ` stroke-dasharray="7 4"` : ""}/><polyline points="${pts}" fill="none" stroke="var(--map)" stroke-width="1" stroke-dasharray="3 4" vector-effect="non-scaling-stroke" opacity="${op}"/>`;
   });
-  if (zoomed) STATIONS.forEach(s => { h += `<circle cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(s.lines.length > 1 ? 3.4 : 2.2).toFixed(2)}" fill="var(--map)" stroke="${s.lines[0].color}" stroke-width="1.4" vector-effect="non-scaling-stroke"><title>${esc(s.name)} metro</title></circle>`; });
+  if (zoomed) STATIONS.filter(s => s.lines.some(lineOn)).forEach(s => { h += `<circle cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(s.lines.length > 1 ? 3.4 : 2.2).toFixed(2)}" fill="var(--map)" stroke="${s.lines[0].color}" stroke-width="1.4" vector-effect="non-scaling-stroke"><title>${esc(s.name)} metro</title></circle>`; });
   const anim = animateRoute ? ` class="route-line" pathLength="2400"` : "";
   const thick = (pts, color, dash = "") => `<polyline points="${pts}" fill="none" stroke="var(--surface)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><polyline${dash ? "" : anim} points="${pts}" fill="none" stroke="${color}" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
   const poly = steps => steps.length ? [NODES[steps[0].from], ...steps.map(s => NODES[s.to])].map(n => `${f1(n.x)},${f1(n.y)}`).join(" ") : "";
@@ -1090,7 +1181,7 @@ function renderMap() {
   const altKey = current.alt && chosen !== "alt" && !state.stops.length && !isMetro;
   $("#legend").innerHTML = `<div><b>Traffic at ${DAYS[state.day]} ${clock(t0)}</b></div>
     <div class="row"><span class="sw"><i style="background:var(--good)"></i>Light</span><span class="sw"><i style="background:var(--warn)"></i>Moderate</span><span class="sw"><i style="background:var(--bad)"></i>Heavy</span><span class="sw"><i style="background:var(--worst)"></i>Jammed</span></div>
-    <div class="row"><span class="sw"><i style="background:var(--accent);height:5px"></i>Your route</span>${altKey ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 7px)"></i>Alternative</span>` : ""}<span class="sw"><i style="background:linear-gradient(90deg,var(--m-purple) 0 33%,var(--m-green) 33% 66%,var(--m-yellow) 66%)"></i>Metro</span></div>`;
+    <div class="row"><span class="sw"><i style="background:var(--accent);height:5px"></i>Your route</span>${altKey ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 7px)"></i>Alternative</span>` : ""}<span class="sw"><i style="background:linear-gradient(90deg,var(--m-purple) 0 33%,var(--m-green) 33% 66%,var(--m-yellow) 66%)"></i>Metro</span>${state.upcoming ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--m-pink) 0 5px,var(--m-blue) 5px 10px)"></i>Being built</span>` : ""}</div>`;
 }
 
 // Pan, pinch, wheel zoom and junction taps.

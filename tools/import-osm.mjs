@@ -11,7 +11,8 @@
  *   node tools/import-osm.mjs --print-queries       print the Overpass queries and exit
  *
  * Options: --endpoint URL (default https://overpass-api.de/api/interpreter),
- *          --bbox south,west,north,east, --no-secondary (skip secondary roads),
+ *          --bbox south,west,north,east, --no-tertiary (skip tertiary roads),
+ *          --no-secondary (skip secondary and tertiary roads),
  *          --out PATH (default data/osm-bengaluru.js)
  *
  * Needs Node 18 or later and nothing else. Behind an HTTPS proxy, run with
@@ -34,6 +35,7 @@ const BBOX = opt("--bbox", "12.70,77.30,13.26,77.86").split(",").map(Number);
 const OUT = resolve(ROOT, opt("--out", "data/osm-bengaluru.js"));
 const CACHE = resolve(ROOT, ".osm-cache");
 const WITH_SECONDARY = !flag("--no-secondary");
+const WITH_TERTIARY = WITH_SECONDARY && !flag("--no-tertiary");
 
 // Junctions closer than this along a road are merged into one (dual carriageways, slip roads, roundabouts).
 const MERGE_M = 70, MERGE_SPAN_M = 60;
@@ -42,7 +44,7 @@ const SIMPLIFY_M = 18;
 
 if (BBOX.length !== 4 || BBOX.some(Number.isNaN)) throw new Error("--bbox needs south,west,north,east");
 const bbox = BBOX.join(",");
-const classes = ["motorway", "trunk", "primary", ...(WITH_SECONDARY ? ["secondary"] : [])];
+const classes = ["motorway", "trunk", "primary", ...(WITH_SECONDARY ? ["secondary"] : []), ...(WITH_TERTIARY ? ["tertiary"] : [])];
 
 const ROADS_QUERY = `[out:json][timeout:300][bbox:${bbox}];
 way["highway"~"^(${classes.join("|")})(_link)?$"]["area"!="yes"]["access"!~"^(no|private)$"];
@@ -133,11 +135,11 @@ function simplify(pts, tol) {
 }
 
 /* ---------------- Roads ---------------- */
-const CLASS = { motorway: 0, trunk: 1, primary: 2, secondary: 3 }; // index.html: xway, arterial, main, city
+const CLASS = { motorway: 0, trunk: 1, primary: 2, secondary: 3, tertiary: 4 }; // index.html: xway, arterial, main, city, local
 function roadName(t) {
   const n = t["name:en"] || t.name || "";
   if (n && t.ref && !n.includes(t.ref) && /^(NH|SH)\s?\d/.test(t.ref)) return `${n} (${t.ref})`;
-  return n || t.ref || ({ motorway: "Expressway", trunk: "Highway", primary: "Main road", secondary: "Road" }[t.highway.replace("_link", "")]) + (t.highway.endsWith("_link") ? " ramp" : "");
+  return n || t.ref || ({ motorway: "Expressway", trunk: "Highway", primary: "Main road", secondary: "Road", tertiary: "Road" }[t.highway.replace("_link", "")]) + (t.highway.endsWith("_link") ? " ramp" : "");
 }
 function onewayOf(t) {
   const o = t.oneway;

@@ -94,6 +94,15 @@ input[aria-invalid="true"] { border-color: var(--bad); }
 .commute .pill-btn.go { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
 .linkish { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
 .linkish:hover { color: var(--ink); }
+.mine { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.mine:empty { display: none; }
+.mine li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mine li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.mine .pill-btn { padding: 2px 10px; }
+.mine-form { display: grid; gap: 8px; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }
+.mine-form label { display: grid; gap: 3px; font-size: 13px; color: var(--muted); }
+.mine-form input { font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+.mine-form .row { display: flex; gap: 12px; align-items: center; }
 .mode-row { justify-content: space-between; }
 .mode-row .seg span { padding: 4px 10px; font-size: 12.5px; }
 .cost { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); }
@@ -200,6 +209,20 @@ footer p { margin: 0 0 6px; }
           <label class="check"><input type="checkbox" id="optimise" checked><span>Find the fastest stop order<small>Start and destination stay fixed.</small></span></label>
           <label class="dwell" for="dwell">Minutes spent at each stop <input type="number" id="dwell" min="0" max="240" step="5" value="10"></label>
         </div>
+      </div>
+
+      <div class="group">
+        <div class="label">Your places</div>
+        <ul class="mine" id="mine"></ul>
+        <button class="ghost" id="addMine" type="button">+ Save a place of your own</button>
+        <form class="mine-form" id="mineForm" hidden autocomplete="off">
+          <p class="note">Tap the map where it is (or long-press it any time), or paste coordinates or a Google Maps link.</p>
+          <label>Name <input type="text" id="mineName" maxlength="60" spellcheck="false" placeholder="Home, Work, Gym…"></label>
+          <label>Location <input type="text" id="mineAt" spellcheck="false" placeholder="12.9716, 77.5946"></label>
+          <div class="note" id="mineMsg" aria-live="polite"></div>
+          <div class="row"><button class="pill-btn go" type="submit">Save</button><button class="linkish" type="button" id="mineCancel">Cancel</button></div>
+        </form>
+        <div class="note">Saved in this browser only. Nobody else sees them.</div>
       </div>
 
       <div class="group">
@@ -611,8 +634,6 @@ const METRO = [
 const lineOn = L => !L.upcoming || state.upcoming;
 // Localities and landmarks: name, lat, lon, area, kind ("area" or "landmark"). Joined to the nearest junction.
 const EXTRA_PLACES = [
-  // Home: the default start, always shown on the map. Typing "home" finds it too.
-  ["Inner Spaces Glory Fields, Choodasandra",12.8906,77.6718,"East","home"],
   // Central
   ["Commercial Street",12.9822,77.6083,"Central"],["Brigade Road",12.9716,77.6070,"Central"],["Church Street",12.9750,77.6040,"Central"],["Cubbon Park",12.9763,77.5929,"Central","landmark"],
   ["UB City",12.9716,77.5960,"Central","landmark"],["Vasanth Nagar",12.9900,77.5940,"Central"],["Sampangi Rama Nagar",12.9640,77.5940,"Central"],["Chickpet",12.9668,77.5770,"Central"],
@@ -691,7 +712,8 @@ const OSM = (() => {
   return d && d.roads && d.roads.nodes && d.roads.nodes.length > 2 && d.roads.edges && d.roads.edges.length ? d : null;
 })();
 const DETOUR = { xway: 1.12, arterial: 1.2, main: 1.25, city: 1.3 };
-const SPEED = { car: { xway: 70, arterial: 42, main: 33, city: 25 }, bike: { xway: 60, arterial: 42, main: 36, city: 29 } };
+// "local" (OSM tertiary roads) exists only on the OSM network.
+const SPEED = { car: { xway: 70, arterial: 42, main: 33, city: 25, local: 22 }, bike: { xway: 60, arterial: 42, main: 36, city: 29, local: 26 } };
 const CONG = { car: 1.55, bike: 0.9 };
 const HUBS = ["mgroad", "bellandur", "itpl", "ecity", "manyata"].map(id => JUNCTIONS[JIDX[id]]);
 const hubDist = n => Math.min(...HUBS.map(h => km(n, h)));
@@ -706,8 +728,8 @@ const MODEL_EDGES = RAW_EDGES.map(([a, b, cls, h, road, flags = ""]) => {
 
 /* OSM roads carry no traffic knowledge, so each one borrows the bottleneck severity and flood flag of the
    built-in road it runs along (same name nearby, or any road close by in the same direction). */
-const OSM_CLASS = ["xway", "arterial", "main", "city"];
-const DEFAULT_H = { xway: 0.12, arterial: 0.4, main: 0.42, city: 0.38 };
+const OSM_CLASS = ["xway", "arterial", "main", "city", "local"];
+const DEFAULT_H = { xway: 0.12, arterial: 0.4, main: 0.42, city: 0.38, local: 0.3 };
 const roadKey = n => n.toLowerCase().replace(/\(.*?\)/g, " ").replace(/\broad\b/g, "rd").replace(/\bmain\b/g, "").replace(/[^a-z0-9]+/g, " ").trim().split(" ").slice(0, 2).join(" ");
 function segDistKm(p, A, B) {
   const k = Math.cos(p.lat * RAD) * 111.32, ax = (A.lon - p.lon) * k, ay = (A.lat - p.lat) * 110.57, bx = (B.lon - p.lon) * k, by = (B.lat - p.lat) * 110.57;
@@ -726,7 +748,7 @@ function calibrate(E) {
     if (mid.lat < bx[0] || mid.lon < bx[1] || mid.lat > bx[2] || mid.lon > bx[3]) return;
     const A = JUNCTIONS[M.a], B = JUNCTIONS[M.b], d = segDistKm(mid, A, B);
     const named = key && MODEL_KEYS[i] === key;
-    if (d > (named ? 1.2 : 0.35) || (!named && !sameDirection(dirE, bearing(A, B)))) return;
+    if (d > (named ? 1.2 : 0.35) || (!named && (E.cls === "local" || !sameDirection(dirE, bearing(A, B))))) return;
     const score = d - (named ? 1 : 0);
     if (score < bd) { bd = score; best = M; }
   });
@@ -1060,17 +1082,25 @@ if (OSM) {
     n.name = b.name; n.area = b.area;
   });
 }
+/* Your places: named spots saved in this browser only (localStorage), never in the page itself. */
+const MY_STORE = "namma-route-places";
+const IN_AREA = p => p.lat > 12.6 && p.lat < 13.35 && p.lon > 77.25 && p.lon < 77.95;
+const myPlaces = (() => {
+  try {
+    const list = JSON.parse(localStorage.getItem(MY_STORE) || "[]");
+    return Array.isArray(list) ? list.filter(m => m && typeof m.id === "string" && /^my-/.test(m.id) && typeof m.name === "string" && m.name.trim() && IN_AREA(m)) : [];
+  } catch (e) { return []; }
+})();
+myPlaces.forEach(m => addPlace({ id: m.id, name: m.name.trim().slice(0, 60), lat: +m.lat, lon: +m.lon, kind: "mine" }));
 const PIDX = Object.fromEntries(PL.map((p, i) => [p.id, i]));
 const PBYNAME = new Map(PL.map((p, i) => [p.name.toLowerCase(), i]));
 const place = id => PL[PIDX[id]];
 // Turn typed text into a place id: exact name, else the only place whose name contains it.
-const HOME = (PL.find(p => p.kind === "home") || {}).id;
 function resolvePlace(text) {
   const q = text.trim().toLowerCase();
   if (!q) return null;
-  if (q === "home" && HOME) return HOME;
   if (PBYNAME.has(q)) return PL[PBYNAME.get(q)].id;
-  const hits = PL.filter(p => p.name.toLowerCase().includes(q));
+  const hits = PL.filter(p => !p.gone && p.name.toLowerCase().includes(q));
   const starts = hits.filter(p => p.name.toLowerCase().startsWith(q));
   if (hits.length === 1) return hits[0].id;
   if (starts.length === 1) return starts[0].id;
@@ -1173,12 +1203,14 @@ const metroCostText = c => c.access ? `${rupees(c.fare)} fare + ${rupees(c.acces
    State
    ============================================================ */
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DEFAULT = { from: HOME || "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from", mode: "leave", commute: null, upcoming: false };
+const myHome = PL.find(p => p.kind === "mine" && p.name.toLowerCase() === "home");
+const DEFAULT = { from: myHome ? myHome.id : "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from", mode: "leave", commute: null, upcoming: false };
 const STORE = "namma-route";
 let state = { ...DEFAULT };
 try {
   const s = JSON.parse(localStorage.getItem(STORE) || "null");
   if (s && PIDX[s.from] !== undefined && PIDX[s.to] !== undefined) state = { ...DEFAULT, ...s, stops: (s.stops || []).filter(id => PIDX[id] !== undefined) };
+  if (state.commute && (PIDX[state.commute.from] === undefined || PIDX[state.commute.to] === undefined)) state.commute = null;
 } catch (e) { /* storage unavailable: start fresh */ }
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* ignore */ } };
 let chosen = "fast";      // fast | alt | short | metro
@@ -1206,8 +1238,9 @@ const $ = s => document.querySelector(s);
    Controls
    ============================================================ */
 const AREAS = ["Central", "East", "South", "North", "West"];
-const KIND = { junction: "junction", area: "area", landmark: "landmark", station: "metro", home: "home" };
-$("#placeList").innerHTML = PL.slice().sort((x, y) => x.name.localeCompare(y.name)).map(p => `<option value="${esc(p.name)}" label="${p.area} · ${KIND[p.kind]}"></option>`).join("");
+const KIND = { junction: "junction", area: "area", landmark: "landmark", station: "metro", mine: "your place" };
+const fillPlaceList = () => { $("#placeList").innerHTML = PL.filter(p => !p.gone).sort((x, y) => x.name.localeCompare(y.name)).map(p => `<option value="${esc(p.name)}" label="${p.area} · ${KIND[p.kind]}"></option>`).join(""); };
+fillPlaceList();
 if (OSM) {
   const m = OSM.meta || {}, when = m.osmTimestamp ? m.osmTimestamp.slice(0, 10) : m.imported;
   $("#netNote").innerHTML = `Roads: ${EDGES.length.toLocaleString("en-IN")} stretches of road between ${NODES.length.toLocaleString("en-IN")} junctions from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> (${esc((m.classes || []).join(", ") || "main roads")}${when ? `, data as of ${esc(when)}` : ""}), with real road lengths and one-way streets. Each road takes its traffic behaviour from the built-in model of the road it follows. Places: the built-in junctions plus about 180 localities and landmarks and every metro station, each joined to the nearest OSM junction with a short stretch on local roads at either end. <a href="?net=model">Use the built-in road model instead</a>.`;
@@ -1220,7 +1253,9 @@ $("#days").innerHTML = DAYS.map((d, i) => `<label><input type="radio" name="day"
 function syncControls() {
   $("#from").value = place(state.from).name; $("#to").value = place(state.to).name;
   ["#from", "#to"].forEach(sel => $(sel).removeAttribute("aria-invalid"));
-  $("#placeMsg").textContent = `${PL.length} places: junctions, localities, landmarks and metro stations.`;
+  const mine = PL.filter(p => p.kind === "mine" && !p.gone).length;
+  $("#placeMsg").textContent = `${PL.length - PL.filter(p => p.gone).length} places: junctions, localities, landmarks, metro stations${mine ? ` and ${mine} of yours` : ""}.`;
+  renderMine();
   $("#slot").value = state.slot; $("#clock").textContent = clock(state.slot * 15);
   document.querySelectorAll('input[name="mode"]').forEach(r => { r.checked = r.value === state.mode; });
   $("#slot").setAttribute("aria-label", state.mode === "arrive" ? "Arrival time" : "Departure time");
@@ -1499,7 +1534,7 @@ function routePoints(d) {
   d.legs.forEach(l => l.steps.forEach(s => { ids.add(s.from); ids.add(s.to); }));
   return [...[...ids].map(i => NODES[i]), ...[PIDX[state.from], PIDX[state.to], ...current.main.order].map(i => PL[i])];
 }
-const WIDTH = { xway: 3.4, arterial: 2.8, main: 2, city: 1.4 };
+const WIDTH = { xway: 3.4, arterial: 2.8, main: 2, city: 1.4, local: 1.1 };
 function renderMap() {
   const d = current.main ? displayed() : null, isMetro = d && d.kind === "metro";
   if (autoFit) { fit(d ? routePoints(d) : CORE, 0.16); autoFit = false; }
@@ -1513,10 +1548,10 @@ function renderMap() {
   // Roads, coloured by traffic at the chosen time. With the OSM network, only what is on screen is drawn,
   // and minor roads only once you zoom in.
   const mx = view.w * 0.1, vx0 = view.x - mx, vy0 = view.y - mx, vx1 = view.x + view.w + mx, vy1 = view.y + view.h + mx;
-  const minorOK = !OSM || view.w < 450, tips = !OSM || view.w < 450;
+  const minorOK = !OSM || view.w < 450, localOK = view.w < 280, tips = !OSM || view.w < 450;
   EDGES.forEach((E, i) => {
     const on = onRoute.has(i);
-    if (OSM && !on && (E.bb[2] < vx0 || E.bb[0] > vx1 || E.bb[3] < vy0 || E.bb[1] > vy1 || (E.cls === "city" && !minorOK))) return;
+    if (OSM && !on && (E.bb[2] < vx0 || E.bb[0] > vx1 || E.bb[3] < vy0 || E.bb[1] > vy1 || (E.cls === "city" && !minorOK) || (E.cls === "local" && !localOK))) return;
     const m = E.oneway ? edgeMult(E, 0, t0, o) : (edgeMult(E, 0, t0, o) + edgeMult(E, 1, t0, o)) / 2, [cls, lab] = band(m);
     const dim = d && (isMetro || !on);
     const tip = tips || on ? `<title>${esc(E.road)}${E.oneway ? " (one way)" : ""}: ${lab.toLowerCase()} traffic at ${clock(t0)}</title>` : "";
@@ -1568,10 +1603,15 @@ function renderMap() {
   });
   const text = (x, y, size, weight, fill, s) => `<text x="${f1(x)}" y="${f1(y)}" font-size="${size.toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="${weight}" fill="${fill}" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(s)}</text>`;
   JPL.forEach(n => { if (!hidden.has(n.id) && (n.major || zoomed || labelled.has(n.id))) h += text(n.x + u(6), n.y - u(5), u(11.5), n.major ? 600 : 500, "var(--ink)", shortName(n.name)); });
-  PL.filter(p => p.kind === "home" && !special.has(PIDX[p.id])).forEach(p => {
-    h += `<g data-place="${p.id}"><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${u(12).toFixed(2)}" fill="transparent"/><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${u(4.2).toFixed(2)}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/><title>Home: ${esc(p.name)}</title></g>`;
-    h += `<text x="${f1(p.x + u(7))}" y="${f1(p.y + u(4))}" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" fill="var(--accent)" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" pointer-events="none">Home</text>`;
+  // Your places: always shown, with their names. A dashed pin marks the spot being added.
+  PL.filter(p => p.kind === "mine" && !p.gone && !special.has(PIDX[p.id])).forEach(p => {
+    h += `<g data-place="${p.id}"><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${u(12).toFixed(2)}" fill="transparent"/><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${u(4.2).toFixed(2)}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/><title>${esc(p.name)}</title></g>`;
+    h += text(p.x + u(7), p.y + u(4), u(11), 600, "var(--accent)", p.name);
   });
+  if (picking && picking.at) {
+    const x = px(picking.at), y = py(picking.at);
+    h += `<circle cx="${f1(x)}" cy="${f1(y)}" r="${u(7).toFixed(2)}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" pointer-events="none"/><circle cx="${f1(x)}" cy="${f1(y)}" r="${u(2).toFixed(2)}" fill="var(--accent)" pointer-events="none"/>`;
+  }
   special.forEach((lab, i) => {
     const n = PL[i], r = u(lab.length > 1 ? 13 : 11), stop = /^\d$/.test(lab);
     h += `<g data-place="${n.id}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${r.toFixed(2)}" fill="${stop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${f1(n.x)}" y="${f1(n.y + u(4))}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${stop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;
@@ -1621,12 +1661,82 @@ svg.addEventListener("pointermove", e => {
 svg.addEventListener("pointerup", e => {
   pointers.delete(e.pointerId); svg.classList.remove("dragging");
   if (pointers.size < 2) pinch = null;
-  if (drag && !moved && drag.target) tapPlace(drag.target.dataset.place);
+  if (pressed) { /* long-press opened the form */ }
+  else if (picking && drag && !moved) { const at = atPointer(e.clientX, e.clientY); if (IN_AREA(at)) { picking.at = at; $("#mineAt").value = fmtAt(at); $("#mineMsg").textContent = ""; renderMap(); } }
+  else if (drag && !moved && drag.target) tapPlace(drag.target.dataset.place);
   else if (moved) renderMap();
   drag = null;
 });
 svg.addEventListener("pointercancel", e => { pointers.delete(e.pointerId); drag = null; pinch = null; });
 svg.addEventListener("wheel", e => { e.preventDefault(); zoomAt(Math.exp(e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+/* Saving your own places */
+let picking = null; // { at: {lat, lon} | null } while the form is open
+const fmtAt = p => `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
+// Accepts "12.9716, 77.5946", "12.9716° N, 77.5946° E" and Google Maps links ("@12.9716,77.5946,17z" or "?q=12.9716,77.5946").
+function parseAt(text) {
+  const m = String(text).match(/(\d{1,2}\.\d+)\D{1,8}?(\d{2,3}\.\d+)/);
+  return m ? { lat: +m[1], lon: +m[2] } : null;
+}
+function renderMine() {
+  const mine = PL.filter(p => p.kind === "mine" && !p.gone);
+  $("#mine").innerHTML = mine.map(p => `<li><span title="${esc(p.name)}">${esc(p.name)}</span><button class="pill-btn" type="button" data-mine-a="${p.id}" aria-label="Start from ${esc(p.name)}">A</button><button class="pill-btn" type="button" data-mine-b="${p.id}" aria-label="Go to ${esc(p.name)}">B</button><button class="icon-btn" type="button" data-mine-x="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
+}
+function saveMine() {
+  const list = PL.filter(p => p.kind === "mine" && !p.gone).map(p => ({ id: p.id, name: p.name, lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6) }));
+  try { localStorage.setItem(MY_STORE, JSON.stringify(list)); } catch (e) { /* storage unavailable: kept for this visit */ }
+}
+function openMine(at = null) {
+  const names = new Set(PL.filter(p => p.kind === "mine" && !p.gone).map(p => p.name.toLowerCase()));
+  picking = { at };
+  $("#mineForm").hidden = false; $("#addMine").hidden = true; $("#mineMsg").textContent = "";
+  if (!$("#mineName").value) $("#mineName").value = !names.has("home") ? "Home" : !names.has("work") ? "Work" : "";
+  $("#mineAt").value = at ? fmtAt(at) : "";
+  $("#mineName").focus(); $("#mineName").select();
+  renderMap();
+}
+function closeMine() { picking = null; $("#mineForm").hidden = true; $("#addMine").hidden = false; $("#mineName").value = ""; renderMap(); }
+$("#addMine").addEventListener("click", () => openMine());
+$("#mineCancel").addEventListener("click", closeMine);
+$("#mineAt").addEventListener("input", e => { const at = parseAt(e.target.value); picking.at = at && IN_AREA(at) ? at : null; renderMap(); });
+$("#mineForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("#mineName").value.trim().replace(/\s+/g, " "), at = parseAt($("#mineAt").value), msg = t => { $("#mineMsg").textContent = t; };
+  if (!name) return msg("Give it a name.");
+  if (!at) return msg("Tap the map, or paste coordinates like 12.9716, 77.5946.");
+  if (!IN_AREA(at)) return msg("That spot is outside the area this planner covers.");
+  if (PBYNAME.has(name.toLowerCase())) return msg(`There's already a place called "${name}". Pick another name.`);
+  const pl = { id: `my-${Date.now().toString(36)}`, name, lat: at.lat, lon: at.lon, kind: "mine" };
+  addPlace(pl);
+  const i = PL.length - 1;
+  PIDX[pl.id] = i; PBYNAME.set(name.toLowerCase(), i); pl.x = px(pl); pl.y = py(pl);
+  saveMine(); fillPlaceList(); closeMine(); syncControls();
+  $("#placeMsg").textContent = `Saved "${name}". Use A or B next to it, or type its name.`;
+});
+$("#mine").addEventListener("click", e => {
+  const a = e.target.closest("[data-mine-a]"), b = e.target.closest("[data-mine-b]"), x = e.target.closest("[data-mine-x]");
+  if (a) update({ from: a.dataset.mineA });
+  else if (b) update({ to: b.dataset.mineB });
+  else if (x) {
+    const p = place(x.dataset.mineX);
+    p.gone = true; delete PIDX[p.id]; PBYNAME.delete(p.name.toLowerCase()); seenName.delete(p.name.toLowerCase());
+    saveMine(); fillPlaceList();
+    const swap = id => id === p.id ? (id === state.from ? "hsr" : "manyata") : id;
+    const cm = state.commute && (state.commute.from === p.id || state.commute.to === p.id) ? null : state.commute;
+    update({ from: swap(state.from), to: swap(state.to), stops: state.stops.filter(id => id !== p.id), commute: cm });
+  }
+});
+// Map point under the pointer, as lat/lon.
+const atPointer = (cx, cy) => { const v = toView(cx, cy); return { lat: LAT0 - v.y / K, lon: v.x / (COS * K) + LON0 }; };
+let pressTimer = null, pressed = false;
+svg.addEventListener("pointerdown", e => {
+  clearTimeout(pressTimer); pressed = false;
+  if (pointers.size !== 1) return;
+  const cx = e.clientX, cy = e.clientY;
+  pressTimer = setTimeout(() => { if (!moved && pointers.size === 1) { pressed = true; const at = atPointer(cx, cy); if (IN_AREA(at)) openMine(at); } }, 600);
+});
+svg.addEventListener("pointermove", () => { if (moved) clearTimeout(pressTimer); });
+svg.addEventListener("pointerup", () => clearTimeout(pressTimer), true);
+svg.addEventListener("contextmenu", e => { e.preventDefault(); const at = atPointer(e.clientX, e.clientY); if (IN_AREA(at)) openMine(at); });
 function tapPlace(id) {
   if (state.tap === "from") update({ from: id, tap: "to" }, { refit: false });
   else if (state.tap === "to") update({ to: id }, { refit: false });

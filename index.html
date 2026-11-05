@@ -611,6 +611,8 @@ const METRO = [
 const lineOn = L => !L.upcoming || state.upcoming;
 // Localities and landmarks: name, lat, lon, area, kind ("area" or "landmark"). Joined to the nearest junction.
 const EXTRA_PLACES = [
+  // Home: the default start, always shown on the map. Typing "home" finds it too.
+  ["Inner Spaces Glory Fields, Choodasandra",12.8906,77.6718,"East","home"],
   // Central
   ["Commercial Street",12.9822,77.6083,"Central"],["Brigade Road",12.9716,77.6070,"Central"],["Church Street",12.9750,77.6040,"Central"],["Cubbon Park",12.9763,77.5929,"Central","landmark"],
   ["UB City",12.9716,77.5960,"Central","landmark"],["Vasanth Nagar",12.9900,77.5940,"Central"],["Sampangi Rama Nagar",12.9640,77.5940,"Central"],["Chickpet",12.9668,77.5770,"Central"],
@@ -1003,28 +1005,29 @@ const seenName = new Set(), seenId = new Set();
 /* On the OSM network the nearest junction can be a poor way in: the import has only secondary roads and up, so
    it may sit on a road that leads away from everything. Every junction up to 1.2 km farther than the nearest is
    a candidate; the one with the quickest free-flow trip to and from the city centre, counting the local stretch
-   to reach it, wins. */
+   to reach it, wins. Trips are timed with and without tolls, and a junction that cannot be reached or left
+   without a toll (the end of a tolled flyover) is passed over, so "Avoid tolls" always has a way in. */
 const HUB_TIME = OSM ? (() => {
   const hub = nearestNode(JUNCTIONS[JIDX.mgroad])[0], n = NODES.length, o = { vehicle: "car" };
   const RADJ = NODES.map(() => []);
   ADJ.forEach((list, u) => list.forEach(({ e, to, dir }) => RADJ[to].push({ e, to: u, dir })));
-  const sweep = adj => {
+  const sweep = (adj, noTolls) => {
     const best = new Float64Array(n).fill(Infinity), done = new Uint8Array(n), heap = makeHeap();
     best[hub] = 0; heap.push(hub, 0);
     while (heap.size) {
       const u = heap.pop(); if (done[u]) continue; done[u] = 1;
-      for (const { e, to } of adj[u]) { const c = best[u] + freeTime(EDGES[e], o); if (c < best[to]) { best[to] = c; heap.push(to, c); } }
+      for (const { e, to } of adj[u]) { if (noTolls && EDGES[e].toll) continue; const c = best[u] + freeTime(EDGES[e], o); if (c < best[to]) { best[to] = c; heap.push(to, c); } }
     }
     return best;
   };
-  const out = sweep(ADJ), back = sweep(RADJ);
-  return out.map((v, i) => (v + back[i]) / 2);
+  const out = sweep(ADJ, false), back = sweep(RADJ, false), outFree = sweep(ADJ, true), backFree = sweep(RADJ, true);
+  return out.map((v, i) => (v + back[i] + outFree[i] + backFree[i]) / 4); // Infinity when tolls are unavoidable
 })() : null;
 function gateway(p) {
   const [i0, d0] = nearestNode(p);
   if (!OSM) return [i0, d0];
   const r = d0 + 1.2, C = 0.01, cy = Math.floor(p.lat / C), cx = Math.floor(p.lon / C), span = Math.ceil(r / 1.07);
-  let bi = i0, bd = d0, bs = Infinity;
+  let bi = i0, bd = d0, bs = Infinity; // stays the nearest junction if no candidate is reachable toll-free
   for (let y = cy - span; y <= cy + span; y++) for (let x = cx - span; x <= cx + span; x++) for (const i of NODE_GRID.get(`${y},${x}`) || []) {
     const d = km(p, NODES[i]);
     if (d > r) continue;
@@ -1061,9 +1064,11 @@ const PIDX = Object.fromEntries(PL.map((p, i) => [p.id, i]));
 const PBYNAME = new Map(PL.map((p, i) => [p.name.toLowerCase(), i]));
 const place = id => PL[PIDX[id]];
 // Turn typed text into a place id: exact name, else the only place whose name contains it.
+const HOME = (PL.find(p => p.kind === "home") || {}).id;
 function resolvePlace(text) {
   const q = text.trim().toLowerCase();
   if (!q) return null;
+  if (q === "home" && HOME) return HOME;
   if (PBYNAME.has(q)) return PL[PBYNAME.get(q)].id;
   const hits = PL.filter(p => p.name.toLowerCase().includes(q));
   const starts = hits.filter(p => p.name.toLowerCase().startsWith(q));
@@ -1168,7 +1173,7 @@ const metroCostText = c => c.access ? `${rupees(c.fare)} fare + ${rupees(c.acces
    State
    ============================================================ */
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DEFAULT = { from: "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from", mode: "leave", commute: null, upcoming: false };
+const DEFAULT = { from: HOME || "hsr", to: "manyata", stops: [], day: 1, slot: 36, vehicle: "car", tolls: false, rain: false, optimise: true, dwell: 10, tap: "from", mode: "leave", commute: null, upcoming: false };
 const STORE = "namma-route";
 let state = { ...DEFAULT };
 try {
@@ -1201,7 +1206,7 @@ const $ = s => document.querySelector(s);
    Controls
    ============================================================ */
 const AREAS = ["Central", "East", "South", "North", "West"];
-const KIND = { junction: "junction", area: "area", landmark: "landmark", station: "metro" };
+const KIND = { junction: "junction", area: "area", landmark: "landmark", station: "metro", home: "home" };
 $("#placeList").innerHTML = PL.slice().sort((x, y) => x.name.localeCompare(y.name)).map(p => `<option value="${esc(p.name)}" label="${p.area} · ${KIND[p.kind]}"></option>`).join("");
 if (OSM) {
   const m = OSM.meta || {}, when = m.osmTimestamp ? m.osmTimestamp.slice(0, 10) : m.imported;
@@ -1563,6 +1568,10 @@ function renderMap() {
   });
   const text = (x, y, size, weight, fill, s) => `<text x="${f1(x)}" y="${f1(y)}" font-size="${size.toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="${weight}" fill="${fill}" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(s)}</text>`;
   JPL.forEach(n => { if (!hidden.has(n.id) && (n.major || zoomed || labelled.has(n.id))) h += text(n.x + u(6), n.y - u(5), u(11.5), n.major ? 600 : 500, "var(--ink)", shortName(n.name)); });
+  PL.filter(p => p.kind === "home" && !special.has(PIDX[p.id])).forEach(p => {
+    h += `<g data-place="${p.id}"><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${u(12).toFixed(2)}" fill="transparent"/><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${u(4.2).toFixed(2)}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/><title>Home: ${esc(p.name)}</title></g>`;
+    h += `<text x="${f1(p.x + u(7))}" y="${f1(p.y + u(4))}" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" fill="var(--accent)" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" pointer-events="none">Home</text>`;
+  });
   special.forEach((lab, i) => {
     const n = PL[i], r = u(lab.length > 1 ? 13 : 11), stop = /^\d$/.test(lab);
     h += `<g data-place="${n.id}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${r.toFixed(2)}" fill="${stop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${f1(n.x)}" y="${f1(n.y + u(4))}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${stop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;

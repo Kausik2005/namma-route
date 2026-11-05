@@ -77,7 +77,7 @@ async function overpass(query, label) {
         headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "namma-route-osm-import/1.0" },
         body: "data=" + encodeURIComponent(query),
       });
-      if (res.status === 429 || res.status === 504) throw new Error(`Overpass is busy (HTTP ${res.status})`);
+      if ([429, 502, 503, 504].includes(res.status)) throw new Error(`Overpass is busy (HTTP ${res.status})`);
       if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 400)}`), { fatal: true });
       const json = await res.json();
       if (json.remark && /error|timed out|runtime/i.test(json.remark)) throw new Error(`Overpass: ${json.remark}`);

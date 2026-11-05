@@ -266,7 +266,7 @@ footer p { margin: 0 0 6px; }
       <footer>
         <p id="netNote">Places: every junction plus about 180 localities and landmarks and every metro station. Each one joins the road network at its nearest junction, with a short stretch on local roads at either end. Roads: a simplified network of about 110 junctions, from Nelamangala and Bidadi to Hoskote and Attibele, and the arterial roads between them (ORR, NICE Road, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd, Sarjapur Rd and others). Positions are approximate and road lengths are estimated.</p>
         <p>Traffic: a typical-day model, not live data. It has morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks.</p>
-        <p>Costs are rough guides: petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler, Electronic City Elevated Expressway toll about ₹70 (₹30 on two wheels), NH 44 airport toll about ₹125 for cars, NICE Road about ₹90 (₹35 on two wheels), autos at ₹36 for the first 2 km then ₹18 a km, and BMRCL distance fares from ₹10 to ₹90.</p>
+        <p>Costs are rough guides: petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler, Electronic City Elevated Expressway toll about ₹70 (₹30 on two wheels), NH 44 airport toll about ₹125 for cars, NICE Road about ₹90 (₹35 on two wheels), other toll plazas about ₹70 (₹30 on two wheels), autos at ₹36 for the first 2 km then ₹18 a km, and BMRCL distance fares from ₹10 to ₹90.</p>
         <p id="metroNote">Metro: the Purple, Green and Yellow lines, plus the Pink and Blue lines when you include lines being built, with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
       </footer>
     </main>
@@ -758,7 +758,12 @@ if (OSM && OSM.metro && OSM.metro.lines) {
   for (const ol of OSM.metro.lines) {
     if (!ol.stations || ol.stations.length < 2) continue;
     const L = METRO.find(l => l.id === ol.id);
-    if (L) L.stations = ol.stations.map(s => s.slice());
+    // A station within 400 m of a built-in one on the same line keeps the familiar built-in name (and place id).
+    if (L) L.stations = ol.stations.map(([name, lat, lon]) => {
+      let known = null, bd = 0.4;
+      for (const [n2, la2, lo2] of L.stations) { const d = km({ lat, lon }, { lat: la2, lon: lo2 }); if (d < bd) { bd = d; known = n2; } }
+      return [known || name, lat, lon];
+    });
     else METRO.push({ id: ol.id, name: ol.name, color: ol.colour, run: 2.2, headway: [6, 8], upcoming: !ol.built, stations: ol.stations.map(s => s.slice()) });
   }
   const seen = [];
@@ -974,10 +979,12 @@ const ST_INDEX = new Map(ST.map((s, k) => [`${s.line.id}:${s.i}`, k]));
 const STATIONS = [...ST_BY_NAME.keys()].map(name => { const s = ST[ST_BY_NAME.get(name)[0]]; return { name, lat: s.lat, lon: s.lon, lines: ST_BY_NAME.get(name).map(k => ST[k].line) }; });
 /* Places: every junction, locality, landmark and metro station. Each joins the network at its nearest junction. */
 const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Junctions bucketed into 0.01° cells (about 1.1 km) for nearby-junction searches on the OSM network.
+const NODE_GRID = new Map();
+if (OSM) NODES.forEach((n, i) => { const k = `${Math.floor(n.lat / 0.01)},${Math.floor(n.lon / 0.01)}`; if (!NODE_GRID.has(k)) NODE_GRID.set(k, []); NODE_GRID.get(k).push(i); });
 const nearestNode = (() => {
   if (!OSM) return p => { let bi = 0, bd = Infinity; NODES.forEach((n, i) => { const d = km(p, n); if (d < bd) { bd = d; bi = i; } }); return [bi, bd]; };
-  const C = 0.01, cell = (y, x) => `${y},${x}`, grid = new Map();
-  NODES.forEach((n, i) => { const k = cell(Math.floor(n.lat / C), Math.floor(n.lon / C)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(i); });
+  const C = 0.01, cell = (y, x) => `${y},${x}`, grid = NODE_GRID;
   return p => {
     const cy = Math.floor(p.lat / C), cx = Math.floor(p.lon / C);
     let bi = 0, bd = Infinity;
@@ -993,11 +1000,44 @@ const nearestNode = (() => {
 })();
 const PL = [];
 const seenName = new Set(), seenId = new Set();
+/* On the OSM network the nearest junction can be a poor way in: the import has only secondary roads and up, so
+   it may sit on a road that leads away from everything. Every junction up to 1.2 km farther than the nearest is
+   a candidate; the one with the quickest free-flow trip to and from the city centre, counting the local stretch
+   to reach it, wins. */
+const HUB_TIME = OSM ? (() => {
+  const hub = nearestNode(JUNCTIONS[JIDX.mgroad])[0], n = NODES.length, o = { vehicle: "car" };
+  const RADJ = NODES.map(() => []);
+  ADJ.forEach((list, u) => list.forEach(({ e, to, dir }) => RADJ[to].push({ e, to: u, dir })));
+  const sweep = adj => {
+    const best = new Float64Array(n).fill(Infinity), done = new Uint8Array(n), heap = makeHeap();
+    best[hub] = 0; heap.push(hub, 0);
+    while (heap.size) {
+      const u = heap.pop(); if (done[u]) continue; done[u] = 1;
+      for (const { e, to } of adj[u]) { const c = best[u] + freeTime(EDGES[e], o); if (c < best[to]) { best[to] = c; heap.push(to, c); } }
+    }
+    return best;
+  };
+  const out = sweep(ADJ), back = sweep(RADJ);
+  return out.map((v, i) => (v + back[i]) / 2);
+})() : null;
+function gateway(p) {
+  const [i0, d0] = nearestNode(p);
+  if (!OSM) return [i0, d0];
+  const r = d0 + 1.2, C = 0.01, cy = Math.floor(p.lat / C), cx = Math.floor(p.lon / C), span = Math.ceil(r / 1.07);
+  let bi = i0, bd = d0, bs = Infinity;
+  for (let y = cy - span; y <= cy + span; y++) for (let x = cx - span; x <= cx + span; x++) for (const i of NODE_GRID.get(`${y},${x}`) || []) {
+    const d = km(p, NODES[i]);
+    if (d > r) continue;
+    const score = d * 1.35 / SPEED.car.city * 60 + HUB_TIME[i];
+    if (score < bs) { bs = score; bi = i; bd = d; }
+  }
+  return [bi, bd];
+}
 function addPlace(pl) {
   const key = pl.name.toLowerCase();
   if (seenName.has(key) || seenId.has(pl.id)) return;
   seenName.add(key); seenId.add(pl.id);
-  if (pl.node == null) { const [i, d] = nearestNode(pl); pl.node = i; pl.snapKm = d; }
+  if (pl.node == null) { const [i, d] = gateway(pl); pl.node = i; pl.snapKm = d; }
   if (!pl.area) pl.area = NODES[pl.node].area || "Central";
   PL.push(pl);
 }
@@ -1103,8 +1143,16 @@ const metroFare = rideKm => (METRO_FARE.find(([d]) => rideKm <= d) || [0, 90])[1
 function roadCost(trip, vehicle) {
   const steps = (trip.legs || [trip]).flatMap(l => l.steps);
   const fuel = trip.km / MILEAGE[vehicle] * PETROL;
-  const seen = new Set();
-  const tolls = steps.reduce((a, s) => { const E = EDGES[s.e], fee = E.toll && tollFee(E.road); if (!fee || seen.has(E.road)) return a; seen.add(E.road); return a + fee[vehicle]; }, 0);
+  let tolls = 0;
+  if (OSM) {
+    // OSM tags tolled stretches, ramps and plazas under many names: one fee per continuous tolled stretch.
+    let run = 0;
+    steps.forEach(s => { const E = EDGES[s.e]; if (E.toll) run = Math.max(run, tollFee(E.road)[vehicle]); else { tolls += run; run = 0; } });
+    tolls += run;
+  } else {
+    const seen = new Set();
+    tolls = steps.reduce((a, s) => { const E = EDGES[s.e], fee = E.toll && tollFee(E.road); if (!fee || seen.has(E.road)) return a; seen.add(E.road); return a + fee[vehicle]; }, 0);
+  }
   return { fuel: Math.round(fuel), tolls, total: Math.round(fuel) + tolls };
 }
 function metroCost(m, vehicle) {
@@ -1321,6 +1369,18 @@ function mainRoads(steps) {
 function stretches(steps) {
   const groups = [];
   steps.forEach(s => { const road = EDGES[s.e].road, last = groups[groups.length - 1]; if (last && last.road === road) last.steps.push(s); else groups.push({ road, steps: [s] }); });
+  if (OSM) {
+    // OSM names change along a road (spellings, flyovers, underpasses): pieces under 400 m join the stretch
+    // before them, and roads carrying the same highway number (NH 44, ...) count as one.
+    const ref = r => (r.match(/\(([^)]*\d[^)]*)\)$/) || [])[1];
+    const kmOf = g => g.steps.reduce((a, s) => a + EDGES[s.e].len, 0);
+    for (let i = groups.length - 1; i > 0; i--) {
+      const g = groups[i], prev = groups[i - 1];
+      if (kmOf(g) < 0.4 || (ref(g.road) && ref(g.road) === ref(prev.road))) { prev.steps.push(...g.steps); groups.splice(i, 1); }
+    }
+    if (groups.length > 1 && kmOf(groups[0]) < 0.4) { groups[1].steps.unshift(...groups[0].steps); groups.shift(); }
+    for (let i = groups.length - 1; i > 0; i--) if (groups[i].road === groups[i - 1].road) { groups[i - 1].steps.push(...groups[i].steps); groups.splice(i, 1); }
+  }
   return groups.map(g => {
     const kmv = g.steps.reduce((a, s) => a + s.km, 0), first = g.steps[0], end = g.steps[g.steps.length - 1];
     const minutes = end.t1 - first.t0, free = g.steps.reduce((a, s) => a + s.free, 0);

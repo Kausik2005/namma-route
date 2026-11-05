@@ -4,7 +4,7 @@ A Bengaluru commute planner that answers three questions: which road, which hour
 
 | Page | Data | Needs |
 | --- | --- | --- |
-| `index.html` | Built-in model of ~110 junctions (Nelamangala to Hoskote, Bidadi to Attibele), the arterial roads and NICE Road, and the Purple, Green and Yellow metro lines (Pink and Blue optional), with a typical-day traffic model | Nothing; works offline |
+| `index.html` | ~420 searchable places (localities, landmarks, metro stations) on a built-in model of ~110 junctions (Nelamangala to Hoskote, Bidadi to Attibele), the arterial roads and NICE Road, and the Purple, Green and Yellow metro lines (Pink and Blue optional), with a typical-day traffic model | Nothing; works offline |
 | `live/index.html` | Google Routes API (live and predicted traffic, transit) and Maps JavaScript API (live traffic layer) | Your Google Maps API key |
 
 ## Features

@@ -62,7 +62,7 @@ h1 span { color: var(--accent); }
 .field { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .pin { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; background: var(--accent); color: var(--accent-ink); }
 .pin.stop { background: var(--surface); color: var(--accent); border: 2px solid var(--accent); }
-select, input[type="number"] { width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
+select, input[type="number"], input[type="text"] { width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
 select:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button { font: inherit; cursor: pointer; }
 .icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
@@ -88,6 +88,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .pill-btn:hover { border-color: var(--accent); color: var(--accent); }
 .dwell { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; align-items: center; color: var(--muted); }
 .note { color: var(--muted); font-size: 12.5px; }
+.note:empty { display: none; }
+input[aria-invalid="true"] { border-color: var(--bad); }
 .commute { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .commute .pill-btn.go { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
 .linkish { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
@@ -186,9 +188,11 @@ footer p { margin: 0 0 6px; }
       <div class="group">
         <div class="label">Trip</div>
         <div class="commute" id="commute"></div>
-        <div class="field"><span class="pin" aria-hidden="true">A</span><select id="from" aria-label="Start"></select><button class="icon-btn" id="swap" type="button" title="Swap start and destination" aria-label="Swap start and destination">⇅</button></div>
+        <div class="field"><span class="pin" aria-hidden="true">A</span><input type="text" id="from" list="placeList" autocomplete="off" spellcheck="false" placeholder="Start: area, landmark or metro" aria-label="Start"><button class="icon-btn" id="swap" type="button" title="Swap start and destination" aria-label="Swap start and destination">⇅</button></div>
         <div id="stops" class="group"></div>
-        <div class="field"><span class="pin" aria-hidden="true">B</span><select id="to" aria-label="Destination"></select><span></span></div>
+        <div class="field"><span class="pin" aria-hidden="true">B</span><input type="text" id="to" list="placeList" autocomplete="off" spellcheck="false" placeholder="Destination" aria-label="Destination"><span></span></div>
+        <div class="note" id="placeMsg" aria-live="polite"></div>
+        <datalist id="placeList"></datalist>
         <button class="ghost" id="addStop" type="button">+ Add a stop on the way</button>
         <div id="stopOpts" class="group" hidden>
           <label class="check"><input type="checkbox" id="optimise" checked><span>Find the fastest stop order<small>Start and destination stay fixed.</small></span></label>
@@ -258,7 +262,7 @@ footer p { margin: 0 0 6px; }
       </section>
 
       <footer>
-        <p>Roads: a simplified network of about 110 junctions, from Nelamangala and Bidadi to Hoskote and Attibele, and the arterial roads between them (ORR, NICE Road, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd, Sarjapur Rd and others). Positions are approximate and road lengths are estimated.</p>
+        <p>Places: every junction plus about 180 localities and landmarks and every metro station. Each one joins the road network at its nearest junction, with a short stretch on local roads at either end. Roads: a simplified network of about 110 junctions, from Nelamangala and Bidadi to Hoskote and Attibele, and the arterial roads between them (ORR, NICE Road, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd, Sarjapur Rd and others). Positions are approximate and road lengths are estimated.</p>
         <p>Traffic: a typical-day model, not live data. It has morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks.</p>
         <p>Costs are rough guides: petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler, Electronic City Elevated Expressway toll about ₹70 (₹30 on two wheels), NH 44 airport toll about ₹125 for cars, NICE Road about ₹90 (₹35 on two wheels), autos at ₹36 for the first 2 km then ₹18 a km, and BMRCL distance fares from ₹10 to ₹90.</p>
         <p>Metro: the Purple, Green and Yellow lines, plus the Pink and Blue lines when you include lines being built, with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
@@ -602,6 +606,65 @@ const METRO = [
     ["Bagalur Cross",13.1300,77.6100],["Bettahalasur",13.1500,77.6250],["Doddajala",13.1700,77.6450],["Airport City",13.1900,77.6800],["KIA Terminals",13.1986,77.7066]] },
 ];
 const lineOn = L => !L.upcoming || state.upcoming;
+// Localities and landmarks: name, lat, lon, area, kind ("area" or "landmark"). Joined to the nearest junction.
+const EXTRA_PLACES = [
+  // Central
+  ["Commercial Street",12.9822,77.6083,"Central"],["Brigade Road",12.9716,77.6070,"Central"],["Church Street",12.9750,77.6040,"Central"],["Cubbon Park",12.9763,77.5929,"Central","landmark"],
+  ["UB City",12.9716,77.5960,"Central","landmark"],["Vasanth Nagar",12.9900,77.5940,"Central"],["Sampangi Rama Nagar",12.9640,77.5940,"Central"],["Chickpet",12.9668,77.5770,"Central"],
+  ["Gandhi Nagar",12.9790,77.5780,"Central"],["Seshadripuram",12.9890,77.5760,"Central"],["Kumara Park",12.9930,77.5830,"Central"],["High Grounds",12.9900,77.5850,"Central"],
+  ["Richmond Town",12.9620,77.6020,"Central"],["Langford Town",12.9560,77.6020,"Central"],["Austin Town",12.9600,77.6150,"Central"],["Vivek Nagar",12.9520,77.6210,"Central"],
+  ["Ejipura",12.9440,77.6260,"Central"],["Neelasandra",12.9500,77.6150,"Central"],["Wilson Garden",12.9480,77.5970,"Central"],["Cox Town",12.9970,77.6200,"Central"],
+  ["Benson Town",13.0030,77.6060,"Central"],["Richards Town",13.0010,77.6150,"Central"],["Cleveland Town",12.9930,77.6170,"Central"],["Jayamahal",13.0000,77.5980,"Central"],
+  ["Bangalore Palace",12.9988,77.5921,"Central","landmark"],["Sadashivanagar",13.0080,77.5800,"Central"],["KSR Bengaluru City Railway Station",12.9780,77.5700,"Central","landmark"],
+  ["Shantinagar Bus Station (TTMC)",12.9570,77.5990,"Central","landmark"],["M. Chinnaswamy Stadium",12.9788,77.5996,"Central","landmark"],["Kanteerava Stadium",12.9690,77.5930,"Central","landmark"],
+  ["Garuda Mall",12.9700,77.6100,"Central","landmark"],["Victoria Hospital",12.9600,77.5750,"Central","landmark"],["NIMHANS",12.9430,77.5960,"Central","landmark"],
+  ["Christ University",12.9340,77.6060,"South","landmark"],["Bowring Hospital",12.9840,77.6040,"Central","landmark"],["Infantry Road",12.9840,77.6000,"Central"],
+  // East
+  ["Indiranagar 12th Main",12.9716,77.6412,"East"],["HAL 2nd Stage",12.9680,77.6380,"East"],["Jeevan Bima Nagar",12.9640,77.6560,"East"],["New Thippasandra",12.9740,77.6560,"East"],
+  ["Kaggadasapura",12.9800,77.6800,"East"],["Malleshpalya",12.9700,77.6700,"East"],["Murugeshpalya",12.9580,77.6560,"East"],["Kodihalli",12.9600,77.6460,"East"],
+  ["Vimanapura",12.9600,77.6800,"East"],["Munnekollal",12.9480,77.7140,"East"],["AECS Layout",12.9630,77.7130,"East"],["Brookefield",12.9670,77.7180,"East"],
+  ["Belathur",12.9970,77.7480,"East"],["Phoenix Marketcity",12.9970,77.6960,"East","landmark"],["VR Bengaluru",12.9960,77.6950,"East","landmark"],["Doddanekundi",12.9760,77.6990,"East"],
+  ["Whitefield",12.9698,77.7500,"East"],["Whitefield Railway Station",12.9958,77.7616,"East","landmark"],["Gunjur",12.9300,77.7350,"East"],["Balagere",12.9280,77.7250,"East"],
+  ["Embassy Tech Village",12.9330,77.6880,"East","landmark"],["Kasavanahalli",12.9070,77.6730,"East"],["Haralur",12.9050,77.6590,"East"],["Kaikondrahalli",12.9130,77.6740,"East"],
+  ["Prestige Tech Park",12.9380,77.6960,"East","landmark"],["Bagmane Tech Park",12.9790,77.6620,"East","landmark"],["Brigade Metropolis",12.9930,77.6990,"East","landmark"],
+  ["RMZ Infinity",12.9920,77.6580,"East","landmark"],["Benniganahalli",12.9910,77.6630,"East"],["SMVT Bengaluru Railway Terminal",12.9930,77.6560,"East","landmark"],
+  ["KR Puram Railway Station",13.0000,77.6780,"East","landmark"],["Manipal Hospital (Old Airport Rd)",12.9590,77.6480,"East","landmark"],["Kasturi Nagar",13.0060,77.6600,"East"],
+  ["ITPL Main Road",12.9840,77.7280,"East"],["Seegehalli",13.0020,77.7400,"East"],["Ramagondanahalli",12.9620,77.7480,"East"],
+  ["Siddapura (Whitefield)",12.9620,77.7590,"East"],["Varthur Kodi",12.9540,77.7400,"East"],["Chikkabellandur",12.9120,77.7000,"East"],["Junnasandra",12.9100,77.6920,"East"],
+  // North
+  ["Kalyan Nagar",13.0280,77.6400,"North"],["Kammanahalli",13.0150,77.6370,"North"],["Lingarajapuram",13.0120,77.6250,"North"],["HBR Layout",13.0360,77.6320,"North"],
+  ["HRBR Layout",13.0230,77.6420,"North"],["Kalkere",13.0350,77.6700,"North"],["Hegde Nagar",13.0670,77.6290,"North"],["Rachenahalli",13.0620,77.6180,"North"],
+  ["Kempapura (Hebbal)",13.0450,77.6000,"North"],["Ganganagar",13.0230,77.5880,"North"],["Sanjaynagar",13.0330,77.5770,"North"],["Dollars Colony",13.0300,77.5720,"North"],
+  ["Mathikere",13.0330,77.5620,"North"],["Jalahalli",13.0450,77.5450,"North"],["Yelahanka New Town",13.0990,77.5850,"North"],["Kogilu",13.1050,77.6130,"North"],
+  ["Hunasamaranahalli",13.1480,77.6180,"North"],["Bettahalasur",13.1500,77.6250,"North"],["Phoenix Mall of Asia",13.0870,77.5960,"North","landmark"],["IISc Bangalore",13.0219,77.5671,"North","landmark"],
+  ["Thindlu",13.0680,77.5720,"North"],["Byatarayanapura (Bellary Rd)",13.0800,77.5960,"North"],["Amruthahalli",13.0700,77.6010,"North"],["Nagawara Lake",13.0450,77.6180,"North"],
+  ["Hennur Bande",13.0430,77.6450,"North"],["Kannur",13.0950,77.6600,"North"],["Bagalur Cross",13.1300,77.6100,"North"],["Doddajala",13.1700,77.6450,"North"],
+  // South
+  ["Jayanagar 9th Block",12.9230,77.5920,"South"],["JP Nagar 6th Phase",12.9000,77.5850,"South"],["JP Nagar 7th Phase",12.8930,77.5800,"South"],["Puttenahalli",12.8900,77.5880,"South"],
+  ["Banashankari 3rd Stage",12.9300,77.5450,"South"],["Kumaraswamy Layout",12.9070,77.5620,"South"],["Padmanabhanagar",12.9170,77.5560,"South"],["Gandhi Bazaar",12.9450,77.5700,"South"],
+  ["Hanumanthanagar",12.9390,77.5610,"South"],["Girinagar",12.9420,77.5420,"South"],["Kathriguppe",12.9270,77.5500,"South"],["Anjanapura",12.8580,77.5560,"South"],
+  ["Bilekahalli",12.8990,77.6050,"South"],["Koramangala 1st Block",12.9280,77.6300,"South"],["Koramangala 4th Block",12.9330,77.6280,"South"],["Koramangala 5th Block",12.9350,77.6190,"South"],
+  ["Koramangala 6th Block",12.9390,77.6230,"South"],["Koramangala 8th Block",12.9410,77.6160,"South"],["St. John's Hospital",12.9290,77.6200,"South","landmark"],["Adugodi",12.9430,77.6080,"South"],
+  ["Lakkasandra",12.9450,77.6000,"South"],["HSR Layout Sector 1",12.9160,77.6510,"South"],["HSR Layout Sector 7",12.9100,77.6400,"South"],["Hongasandra",12.8985,77.6255,"South"],
+  ["Kudlu",12.8870,77.6430,"South"],["Singasandra",12.8840,77.6390,"South"],["Electronic City Phase 1",12.8450,77.6600,"South"],["Electronic City Phase 2",12.8400,77.6770,"South"],
+  ["Infosys Electronic City",12.8460,77.6650,"South","landmark"],["Hebbagodi",12.8300,77.6800,"South"],["Narayana Health City",12.8090,77.6950,"South","landmark"],
+  ["Bannerghatta National Park",12.8000,77.5770,"South","landmark"],["IIM Bangalore",12.8950,77.6010,"South","landmark"],["Yelachenahalli",12.8960,77.5700,"South"],
+  ["Doddakallasandra",12.8845,77.5530,"South"],["Vajarahalli",12.8770,77.5450,"South"],["Sarakki",12.9080,77.5760,"South"],["Banashankari Temple",12.9180,77.5740,"South","landmark"],
+  ["Bull Temple",12.9420,77.5680,"South","landmark"],["Basavanagudi National College",12.9505,77.5737,"South"],["Mico Layout",12.9050,77.6110,"South"],["Hosur Road (Garvebhavi Palya)",12.9050,77.6230,"South"],
+  ["Parappana Agrahara",12.8770,77.6450,"South"],["Naganathapura",12.8760,77.6650,"South"],["Konappana Agrahara",12.8460,77.6690,"South"],["Huskur",12.8380,77.6750,"South"],
+  ["Jigani",12.7850,77.6350,"South"],["Anekal",12.7110,77.6960,"South"],["Kanakapura Road (Art of Living)",12.8270,77.5100,"South","landmark"],
+  // West
+  ["Chandra Layout",12.9600,77.5250,"West"],["Bapuji Nagar",12.9570,77.5410,"West"],["Deepanjali Nagar",12.9520,77.5375,"West"],["Kengeri Satellite Town",12.9150,77.4870,"West"],
+  ["Ullal",12.9550,77.4920,"West"],["Bangalore University (Jnanabharathi)",12.9480,77.5050,"West","landmark"],["Herohalli",12.9930,77.4900,"West"],["Sunkadakatte",12.9870,77.5070,"West"],
+  ["Laggere",13.0130,77.5200,"West"],["Srirampura",12.9965,77.5630,"West"],["Okalipuram",12.9830,77.5640,"West"],["Mahalakshmi Layout",13.0110,77.5450,"West"],
+  ["Orion Mall",13.0110,77.5550,"West","landmark"],["Mantri Square",12.9910,77.5700,"West","landmark"],["Lulu Mall",12.9780,77.5570,"West","landmark"],
+  ["ISKCON Temple (Rajajinagar)",13.0098,77.5511,"West","landmark"],["Yeshwanthpur Railway Station",13.0230,77.5510,"West","landmark"],["Dasarahalli",13.0440,77.5125,"West"],
+  ["Nagasandra",13.0480,77.5000,"West"],["Chikkabanavara",13.0820,77.5000,"West"],["Peenya Industrial Area",13.0300,77.5150,"West"],["Global Village Tech Park",12.9190,77.5000,"West","landmark"],
+  ["Mysore Road Satellite Bus Station",12.9560,77.5470,"West","landmark"],["Malleshwaram 18th Cross",13.0090,77.5640,"West"],["Sankey Tank",13.0090,77.5740,"West","landmark"],
+  ["Rajajinagar 1st Block",12.9960,77.5530,"West"],["Magadi Road",12.9756,77.5554,"West"],["Binnypet",12.9700,77.5600,"West"],
+  ["Mallathahalli",12.9620,77.4950,"West"],["Wonderla",12.8340,77.4010,"West","landmark"],["Tavarekere (Magadi Rd)",12.9700,77.4200,"West"],["Madanayakanahalli",13.0700,77.4650,"West"],
+];
+
 
 /* ============================================================
    Geometry and graph
@@ -706,11 +769,36 @@ function leg(a, b, t, o) {
   const steps = routeCache.get(key);
   return steps ? evalPath(steps, t, o) : null;
 }
+// Short stretch on local roads between a place and its junction (or between two nearby places).
+function localLeg(straightKm, tMin, o) {
+  if (straightKm < 0.05) return { km: 0, minutes: 0, free: 0 };
+  const { h, day } = clockParts(tMin, o.day);
+  const roadKm = straightKm * 1.35, free = roadKm / SPEED[o.vehicle].city * 60;
+  let m = 1 + CONG[o.vehicle] * 0.5 * level(h, day, 0) * (o.rain ? 1.3 : 1);
+  if (o.rain) m *= 1.12;
+  return { km: roadKm, minutes: free * m, free };
+}
+// Wrap a junction-to-junction trip r (leaving at t + first mile) with the local stretches at each end.
+function withEnds(r, P, Q, t, pre, o) {
+  const post = localLeg(Q.snapKm, r.arrive, o);
+  return { ...r, pre: pre.km ? { ...pre, t0: t, place: P } : null, post: post.km ? { ...post, t0: r.arrive, place: Q } : null,
+    depart: t, arrive: r.arrive + post.minutes, minutes: r.arrive + post.minutes - t, km: r.km + pre.km + post.km, free: r.free + pre.free + post.free };
+}
+function placeLeg(P, Q, t, o) {
+  if (P === Q) return { kind: "road", steps: [], pre: null, post: null, depart: t, arrive: t, minutes: 0, km: 0, free: 0 };
+  if (P.node === Q.node) {
+    const l = localLeg(km(P, Q), t, o);
+    return { kind: "road", steps: [], pre: { ...l, t0: t, place: P, direct: Q }, post: null, depart: t, arrive: t + l.minutes, minutes: l.minutes, km: l.km, free: l.free };
+  }
+  const pre = localLeg(P.snapKm, t, o), r = leg(P.node, Q.node, t + pre.minutes, o);
+  return r && withEnds(r, P, Q, t, pre, o);
+}
+const pathBetween = (steps, P, Q, t, o) => { const pre = localLeg(P.snapKm, t, o); return withEnds(evalPath(steps, t + pre.minutes, o), P, Q, t, pre, o); };
 function runOrder(seq, t0, o, dwell, bound = Infinity) {
   let t = t0, dist = 0, free = 0;
   const legs = [];
   for (let i = 0; i < seq.length - 1; i++) {
-    const r = leg(seq[i], seq[i + 1], t, o);
+    const r = placeLeg(PL[seq[i]], PL[seq[i + 1]], t, o);
     if (!r) return null;
     legs.push(r); dist += r.km; free += r.free; t = r.arrive;
     if (i < seq.length - 2) t += dwell;
@@ -723,8 +811,8 @@ function* permutations(arr) {
   for (let i = 0; i < arr.length; i++) for (const p of permutations([...arr.slice(0, i), ...arr.slice(i + 1)])) yield [arr[i], ...p];
 }
 function plan(st, t0, fixedOrder = null) {
-  const o = opts(st), from = IDX[st.from], to = IDX[st.to];
-  const entered = st.stops.map(id => IDX[id]);
+  const o = opts(st), from = PIDX[st.from], to = PIDX[st.to];
+  const entered = st.stops.map(id => PIDX[id]);
   const trip = order => { const r = runOrder([from, ...order, to], t0, o, st.dwell); return r && { ...r, order }; };
   if (fixedOrder) return trip(fixedOrder);
   const asEntered = trip(entered);
@@ -747,6 +835,41 @@ const ST_BY_NAME = new Map();
 ST.forEach((s, k) => { if (!ST_BY_NAME.has(s.name)) ST_BY_NAME.set(s.name, []); ST_BY_NAME.get(s.name).push(k); });
 const ST_INDEX = new Map(ST.map((s, k) => [`${s.line.id}:${s.i}`, k]));
 const STATIONS = [...ST_BY_NAME.keys()].map(name => { const s = ST[ST_BY_NAME.get(name)[0]]; return { name, lat: s.lat, lon: s.lon, lines: ST_BY_NAME.get(name).map(k => ST[k].line) }; });
+/* Places: every junction, locality, landmark and metro station. Each joins the network at its nearest junction. */
+const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const nearestNode = p => { let bi = 0, bd = Infinity; NODES.forEach((n, i) => { const d = km(p, n); if (d < bd) { bd = d; bi = i; } }); return [bi, bd]; };
+const PL = [];
+const seenName = new Set(), seenId = new Set();
+function addPlace(pl) {
+  const key = pl.name.toLowerCase();
+  if (seenName.has(key) || seenId.has(pl.id)) return;
+  seenName.add(key); seenId.add(pl.id);
+  if (pl.node == null) { const [i, d] = nearestNode(pl); pl.node = i; pl.snapKm = d; }
+  if (!pl.area) pl.area = NODES[pl.node].area;
+  PL.push(pl);
+}
+NODES.forEach((n, i) => addPlace({ id: n.id, name: n.name, lat: n.lat, lon: n.lon, area: n.area, kind: "junction", node: i, snapKm: 0 }));
+EXTRA_PLACES.forEach(([name, lat, lon, area, kind = "area"]) => addPlace({ id: slug(name), name, lat, lon, area, kind }));
+STATIONS.forEach(st => {
+  const upcoming = st.lines.every(L => L.upcoming);
+  st.placeId = "m-" + slug(st.name);
+  addPlace({ id: st.placeId, name: `${st.name} metro${upcoming ? " (being built)" : ""}`, lat: st.lat, lon: st.lon, kind: "station", upcoming });
+});
+const PIDX = Object.fromEntries(PL.map((p, i) => [p.id, i]));
+const PBYNAME = new Map(PL.map((p, i) => [p.name.toLowerCase(), i]));
+const place = id => PL[PIDX[id]];
+// Turn typed text into a place id: exact name, else the only place whose name contains it.
+function resolvePlace(text) {
+  const q = text.trim().toLowerCase();
+  if (!q) return null;
+  if (PBYNAME.has(q)) return PL[PBYNAME.get(q)].id;
+  const hits = PL.filter(p => p.name.toLowerCase().includes(q));
+  const starts = hits.filter(p => p.name.toLowerCase().startsWith(q));
+  if (hits.length === 1) return hits[0].id;
+  if (starts.length === 1) return starts[0].id;
+  return null;
+}
+
 const METRO_OPEN = 5 * 60, METRO_CLOSE = 23 * 60;
 const TRANSFER_WALK = 4;
 const wait = (L, tMin, day) => { const { h, day: d } = clockParts(tMin, day); return (isPeak(h, d) ? L.headway[0] : L.headway[1]) / 2; };
@@ -787,8 +910,8 @@ function access(place, station, tMin, o) {
 }
 const nearestStations = (place, k = 3, maxKm = 6.5) => STATIONS.filter(s => s.lines.some(lineOn)).map(s => ({ s, d: km(place, s) })).filter(x => x.d <= maxKm).sort((a, b) => a.d - b.d).slice(0, k).map(x => x.s);
 function metroTrip(fromId, toId, t0, o) {
-  const A = NODES[IDX[fromId]], B = NODES[IDX[toId]];
-  if (A === B) return null;
+  const A = place(fromId), B = place(toId);
+  if (A === B || km(A, B) < 2) return null; // a metro detour never pays off for very short hops
   let best = null;
   for (const sa of nearestStations(A)) for (const sb of nearestStations(B)) {
     if (sa.name === sb.name) continue;
@@ -838,7 +961,7 @@ const STORE = "namma-route";
 let state = { ...DEFAULT };
 try {
   const s = JSON.parse(localStorage.getItem(STORE) || "null");
-  if (s && IDX[s.from] !== undefined && IDX[s.to] !== undefined) state = { ...DEFAULT, ...s, stops: (s.stops || []).filter(id => IDX[id] !== undefined) };
+  if (s && PIDX[s.from] !== undefined && PIDX[s.to] !== undefined) state = { ...DEFAULT, ...s, stops: (s.stops || []).filter(id => PIDX[id] !== undefined) };
 } catch (e) { /* storage unavailable: start fresh */ }
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* ignore */ } };
 let chosen = "fast";      // fast | alt | short | metro
@@ -865,16 +988,18 @@ const $ = s => document.querySelector(s);
    Controls
    ============================================================ */
 const AREAS = ["Central", "East", "South", "North", "West"];
-const OPTIONS = AREAS.map(a => `<optgroup label="${a}">${NODES.filter(n => n.area === a).sort((x, y) => x.name.localeCompare(y.name)).map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join("")}</optgroup>`).join("");
-$("#from").innerHTML = OPTIONS; $("#to").innerHTML = OPTIONS;
+const KIND = { junction: "junction", area: "area", landmark: "landmark", station: "metro" };
+$("#placeList").innerHTML = PL.slice().sort((x, y) => x.name.localeCompare(y.name)).map(p => `<option value="${esc(p.name)}" label="${p.area} · ${KIND[p.kind]}"></option>`).join("");
 $("#days").innerHTML = DAYS.map((d, i) => `<label><input type="radio" name="day" value="${i}"><span>${d}</span></label>`).join("");
 
 function syncControls() {
-  $("#from").value = state.from; $("#to").value = state.to;
+  $("#from").value = place(state.from).name; $("#to").value = place(state.to).name;
+  ["#from", "#to"].forEach(sel => $(sel).removeAttribute("aria-invalid"));
+  $("#placeMsg").textContent = `${PL.length} places: junctions, localities, landmarks and metro stations.`;
   $("#slot").value = state.slot; $("#clock").textContent = clock(state.slot * 15);
   document.querySelectorAll('input[name="mode"]').forEach(r => { r.checked = r.value === state.mode; });
   $("#slot").setAttribute("aria-label", state.mode === "arrive" ? "Arrival time" : "Departure time");
-  const cm = state.commute, short = id => esc(shortName(NODES[IDX[id]].name));
+  const cm = state.commute, short = id => esc(shortName(place(id).name));
   $("#commute").innerHTML = cm
     ? `<button class="pill-btn go" type="button" data-commute="out">${short(cm.from)} → ${short(cm.to)}</button><button class="pill-btn go" type="button" data-commute="back">Back to ${short(cm.from)}</button><button class="linkish" type="button" data-commute="forget">Forget</button>`
     : `<button class="linkish" type="button" data-commute="save">Save A → B as my daily commute</button>`;
@@ -882,8 +1007,10 @@ function syncControls() {
   document.querySelectorAll('input[name="veh"]').forEach(r => { r.checked = r.value === state.vehicle; });
   document.querySelectorAll('input[name="tap"]').forEach(r => { r.checked = r.value === state.tap; });
   $("#tolls").checked = state.tolls; $("#upcoming").checked = state.upcoming; $("#rain").checked = state.rain; $("#optimise").checked = state.optimise; $("#dwell").value = state.dwell;
-  $("#stops").innerHTML = state.stops.map((id, i) => `<div class="field"><span class="pin stop" aria-hidden="true">${i + 1}</span><select data-stop="${i}" id="stop-${i}" aria-label="Stop ${i + 1}">${OPTIONS}</select><button class="icon-btn" type="button" data-remove="${i}" aria-label="Remove stop ${i + 1}">×</button></div>`).join("");
-  state.stops.forEach((id, i) => { $(`#stop-${i}`).value = id; });
+  // Rebuild the stop boxes only when their number changes: replacing a focused box mid-edit breaks its change event.
+  if ($("#stops").children.length !== state.stops.length)
+    $("#stops").innerHTML = state.stops.map((id, i) => `<div class="field"><span class="pin stop" aria-hidden="true">${i + 1}</span><input type="text" list="placeList" autocomplete="off" spellcheck="false" data-stop="${i}" id="stop-${i}" aria-label="Stop ${i + 1}"><button class="icon-btn" type="button" data-remove="${i}" aria-label="Remove stop ${i + 1}">×</button></div>`).join("");
+  state.stops.forEach((id, i) => { $(`#stop-${i}`).value = place(id).name; });
   const full = state.stops.length >= 6;
   $("#addStop").disabled = full;
   $("#addStop").textContent = full ? "Up to 6 stops" : "+ Add a stop on the way";
@@ -895,15 +1022,22 @@ function update(patch, { refit = true, keepChoice = false } = {}) {
   if (!keepChoice) chosen = "fast";
   save(); syncControls(); compute();
 }
-$("#from").addEventListener("change", e => update({ from: e.target.value }));
-$("#to").addEventListener("change", e => update({ to: e.target.value }));
+// Typed place names: accept a unique match, otherwise flag the box and keep the last good trip.
+function placeInput(el, apply) {
+  const id = resolvePlace(el.value);
+  if (!id) { el.setAttribute("aria-invalid", "true"); $("#placeMsg").textContent = `No single match for "${el.value.trim()}". Pick a name from the suggestions.`; return; }
+  apply(id);
+}
+$("#from").addEventListener("change", e => placeInput(e.target, id => update({ from: id })));
+$("#to").addEventListener("change", e => placeInput(e.target, id => update({ to: id })));
+document.addEventListener("focusin", e => { if (e.target.matches && e.target.matches('input[list="placeList"]')) e.target.select(); });
 $("#swap").addEventListener("click", () => update({ from: state.to, to: state.from, stops: state.stops.slice().reverse() }));
 $("#addStop").addEventListener("click", () => {
   const used = new Set([state.from, state.to, ...state.stops]);
   const pick = ["mgroad", "indiranagar", "sonyworld", "jayanagar", "malleshwaram", "marathahalli", "hebbal", "yeshwanthpur"].find(id => !used.has(id)) || "mgroad";
   update({ stops: [...state.stops, pick] });
 });
-$("#stops").addEventListener("change", e => { const i = e.target.dataset.stop; if (i !== undefined) { const s = state.stops.slice(); s[+i] = e.target.value; update({ stops: s }); } });
+$("#stops").addEventListener("change", e => { const i = e.target.dataset.stop; if (i !== undefined) placeInput(e.target, id => { const s = state.stops.slice(); s[+i] = id; update({ stops: s }); }); });
 $("#stops").addEventListener("click", e => { const b = e.target.closest("[data-remove]"); if (b) { const s = state.stops.slice(); s.splice(+b.dataset.remove, 1); update({ stops: s }); } });
 $("#optimise").addEventListener("change", e => update({ optimise: e.target.checked }));
 $("#dwell").addEventListener("change", e => update({ dwell: Math.max(0, Math.min(240, +e.target.value || 0)) }, { refit: false }));
@@ -969,11 +1103,11 @@ function compute() {
   const main = plan(state, t0);
   let short = null, alt = null, metro = null;
   if (main && !state.stops.length && state.from !== state.to) {
-    const a = IDX[state.from], b = IDX[state.to], fastSteps = main.legs[0].steps;
+    const P = place(state.from), Q = place(state.to), a = P.node, b = Q.node, fastSteps = main.legs[0].steps;
     const sd = route(a, b, t0, o, { metric: "dist" });
-    if (sd && !samePath(sd, fastSteps)) short = evalPath(sd, t0, o);
+    if (sd && !samePath(sd, fastSteps)) short = pathBetween(sd, P, Q, t0, o);
     const as = route(a, b, t0, o, { penalty: new Set(fastSteps.map(s => s.e)) });
-    if (as && !samePath(as, fastSteps)) { const r = evalPath(as, t0, o); if (r.minutes < main.minutes * 1.45) alt = r; }
+    if (as && !samePath(as, fastSteps)) { const r = pathBetween(as, P, Q, t0, o); if (r.minutes < main.minutes * 1.45) alt = r; }
     metro = arriveBy != null ? latestMetroDeparture(arriveBy, o) : metroTrip(state.from, state.to, t0, o);
   }
   if (chosen === "metro" && !metro || chosen === "alt" && !alt || chosen === "short" && !short) chosen = "fast";
@@ -1024,8 +1158,8 @@ function stretches(steps) {
 const metroLines = m => m.ride.rides.map(r => `<i style="background:${r.line.color}"></i>`).join("");
 const metroSummary = m => `${m.first.mode === "walk" ? "Walk" : m.first.mode === "bike" ? "Ride" : "Auto"} to ${esc(m.sa.name)}, ${m.ride.rides.map(r => r.line.name.replace(" Line", "")).join(" → ")} to ${esc(m.sb.name)}`;
 function gmapsURL(d) {
-  const ll = i => `${NODES[i].lat.toFixed(5)},${NODES[i].lon.toFixed(5)}`;
-  const p = new URLSearchParams({ api: "1", origin: ll(IDX[state.from]), destination: ll(IDX[state.to]), travelmode: d.kind === "metro" ? "transit" : "driving" });
+  const ll = i => `${PL[i].lat.toFixed(5)},${PL[i].lon.toFixed(5)}`;
+  const p = new URLSearchParams({ api: "1", origin: ll(PIDX[state.from]), destination: ll(PIDX[state.to]), travelmode: d.kind === "metro" ? "transit" : "driving" });
   if (d.kind !== "metro" && current.main.order.length) p.set("waypoints", current.main.order.map(ll).join("|"));
   if (state.tolls && d.kind !== "metro") p.set("avoid", "tolls");
   return `https://www.google.com/maps/dir/?${p}`;
@@ -1035,8 +1169,8 @@ function renderSummary() {
   if (!c.main) { el.innerHTML = `<div class="empty">No route found with these settings. Try allowing tolls.</div>`; return; }
   const d = displayed(), isMetro = d.kind === "metro";
   const avg = d.minutes > 0 ? d.km / (d.minutes / 60) : 0;
-  const tripName = isMetro ? `${esc(nm(IDX[state.from]))} → ${esc(nm(IDX[state.to]))} by Namma Metro`
-    : [state.from, ...c.main.order.map(i => NODES[i].id), state.to].map(id => esc(nm(IDX[id]))).join(" → ");
+  const tripName = isMetro ? `${esc(place(state.from).name)} → ${esc(place(state.to).name)} by Namma Metro`
+    : [PIDX[state.from], ...c.main.order, PIDX[state.to]].map(i => esc(PL[i].name)).join(" → ");
   let chips = "", losses = "", callout = "";
   if (isMetro) {
     const saved = c.main.minutes - d.minutes;
@@ -1061,7 +1195,7 @@ function renderSummary() {
     if (worst.length) losses = `<div class="losses"><div class="label">Where you lose time</div><ul>${worst.map(s => `<li><span class="plus">+${Math.round(s.lost)} min</span><span><b>${esc(s.road)}</b> · ${esc(shortName(nm(s.from)))} → ${esc(shortName(nm(s.to)))}, about ${clock(s.t0)}</span></li>`).join("")}</ul></div>`;
     const bi = bestInWindow(), gain = c.series.road[c.depSlot] - c.series.road[bi];
     callout = c.arriveBy != null
-      ? `<div class="callout"><div class="big">${clock(c.t0)}</div><p><b>Leave by ${clock(c.t0)}</b> to reach ${esc(nm(IDX[state.to]))} by ${clock(c.arriveBy)} on a typical ${DAYS[state.day]}.${c.metro ? ` By metro, leave by ${clock(c.metro.depart)}.` : ""} Add 10 to 15 minutes if you can't be late.</p><span></span></div>`
+      ? `<div class="callout"><div class="big">${clock(c.t0)}</div><p><b>Leave by ${clock(c.t0)}</b> to reach ${esc(place(state.to).name)} by ${clock(c.arriveBy)} on a typical ${DAYS[state.day]}.${c.metro ? ` By metro, leave by ${clock(c.metro.depart)}.` : ""} Add 10 to 15 minutes if you can't be late.</p><span></span></div>`
       : bi !== c.depSlot && gain >= 3
       ? `<div class="callout"><div class="big">${clock(bi * 15)}</div><p><b>${bi < c.depSlot ? "Leave earlier" : "Wait a little"}:</b> leaving at ${clock(bi * 15)} takes ${dur(c.series.road[bi])}, about ${dur(gain)} less than at ${clock(c.t0)}.</p><button class="pill-btn" type="button" id="useBest" data-slot="${bi}">Use ${clock(bi * 15)}</button></div>`
       : `<div class="callout"><div class="big">✓</div><p>${clock(c.t0)} is already the quickest road departure within two hours either side.</p><span></span></div>`;
@@ -1102,7 +1236,7 @@ $("#summary").addEventListener("click", e => {
 const svg = $("#map");
 const K = 2800, LON0 = 77.44, LAT0 = 13.24, COS = Math.cos(13 * RAD);
 const px = p => (p.lon - LON0) * COS * K, py = p => (LAT0 - p.lat) * K;
-[...NODES, ...ST, ...STATIONS].forEach(n => { n.x = px(n); n.y = py(n); });
+[...NODES, ...ST, ...STATIONS, ...PL].forEach(n => { n.x = px(n); n.y = py(n); });
 let view = { x: 0, y: 0, w: 900, h: 900 };
 const CORE = NODES.filter(n => n.lat < 13.08);
 function fit(points, padFrac = 0.12) {
@@ -1116,9 +1250,9 @@ function fit(points, padFrac = 0.12) {
 const scale = () => Math.min(svg.clientWidth / view.w, svg.clientHeight / view.h) || 1;
 function routePoints(d) {
   if (d.kind === "metro") return [d.from, d.to, ...d.ride.rides.flatMap(r => r.path.map(k => ST[k]))];
-  const ids = new Set([IDX[state.from], IDX[state.to], ...current.main.order]);
+  const ids = new Set();
   d.legs.forEach(l => l.steps.forEach(s => { ids.add(s.from); ids.add(s.to); }));
-  return [...ids].map(i => NODES[i]);
+  return [...[...ids].map(i => NODES[i]), ...[PIDX[state.from], PIDX[state.to], ...current.main.order].map(i => PL[i])];
 }
 const WIDTH = { xway: 3.4, arterial: 2.8, main: 2, city: 1.4 };
 const f1 = v => v.toFixed(1);
@@ -1144,7 +1278,14 @@ function renderMap() {
     const op = isMetro ? 0.35 : 0.55;
     h += `<polyline points="${pts}" fill="none" stroke="${L.color}" stroke-width="3.2" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="${op}"${L.upcoming ? ` stroke-dasharray="7 4"` : ""}/><polyline points="${pts}" fill="none" stroke="var(--map)" stroke-width="1" stroke-dasharray="3 4" vector-effect="non-scaling-stroke" opacity="${op}"/>`;
   });
-  if (zoomed) STATIONS.filter(s => s.lines.some(lineOn)).forEach(s => { h += `<circle cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(s.lines.length > 1 ? 3.4 : 2.2).toFixed(2)}" fill="var(--map)" stroke="${s.lines[0].color}" stroke-width="1.4" vector-effect="non-scaling-stroke"><title>${esc(s.name)} metro</title></circle>`; });
+  // Localities and landmarks appear as you zoom in.
+  if (view.w < 330) PL.forEach(p => {
+    if (p.kind !== "area" && p.kind !== "landmark") return;
+    const r = u(2.4);
+    h += `<g data-place="${p.id}"><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${u(10).toFixed(2)}" fill="transparent"/><rect x="${f1(p.x - r)}" y="${f1(p.y - r)}" width="${(2 * r).toFixed(2)}" height="${(2 * r).toFixed(2)}" rx="${(r / 2).toFixed(2)}" fill="var(--muted)" opacity=".75"/><title>${esc(p.name)}</title></g>`;
+    if (view.w < 220) h += `<text x="${f1(p.x + u(5))}" y="${f1(p.y + u(4))}" font-size="${u(10).toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" fill="var(--muted)" stroke="var(--map)" stroke-width="${u(3).toFixed(2)}" paint-order="stroke" pointer-events="none">${esc(p.name)}</text>`;
+  });
+  if (zoomed) STATIONS.filter(s => s.lines.some(lineOn)).forEach(s => { h += `<circle data-place="${s.placeId}" cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(s.lines.length > 1 ? 3.4 : 2.2).toFixed(2)}" fill="var(--map)" stroke="${s.lines[0].color}" stroke-width="1.4" vector-effect="non-scaling-stroke"><title>${esc(s.name)} metro</title></circle>`; });
   const anim = animateRoute ? ` class="route-line" pathLength="2400"` : "";
   const thick = (pts, color, dash = "") => `<polyline points="${pts}" fill="none" stroke="var(--surface)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><polyline${dash ? "" : anim} points="${pts}" fill="none" stroke="${color}" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
   const poly = steps => steps.length ? [NODES[steps[0].from], ...steps.map(s => NODES[s.to])].map(n => `${f1(n.x)},${f1(n.y)}`).join(" ") : "";
@@ -1156,23 +1297,27 @@ function renderMap() {
     [d.sa, d.sb, ...d.ride.rides.slice(1).map(r => ST[r.path[0]])].forEach(s => { h += `<circle cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(5).toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/><text x="${f1(s.x + u(8))}" y="${f1(s.y + u(14))}" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" fill="var(--ink)" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" pointer-events="none">${esc(s.name)} ▸</text>`; });
   } else if (d) {
     if (current.alt && chosen !== "alt" && !state.stops.length) h += `<polyline points="${poly(current.alt.steps)}" fill="none" stroke="var(--muted)" stroke-width="4" stroke-dasharray="2 7" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity=".9"/>`;
-    d.legs.forEach(l => { const pts = poly(l.steps); if (pts) h += thick(pts, "var(--accent)"); });
+    d.legs.forEach(l => {
+      const pts = poly(l.steps); if (pts) h += thick(pts, "var(--accent)");
+      [l.pre, l.post].forEach(x => { if (!x) return; const A = x.place, B = x.direct || NODES[A.node]; h += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="var(--accent)" stroke-width="3.5" stroke-dasharray="1 6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`; });
+    });
   }
   if (current.main) {
-    special.set(IDX[state.from], "A");
+    special.set(PIDX[state.from], "A");
     if (!isMetro) current.main.order.forEach((i, n) => special.set(i, String(n + 1)));
-    special.set(IDX[state.to], IDX[state.to] === IDX[state.from] ? "A/B" : "B");
+    special.set(PIDX[state.to], state.to === state.from ? "A/B" : "B");
   }
+  const hidden = new Set([...special.keys()].filter(i => PL[i].kind === "junction").map(i => PL[i].node));
   const labelled = new Set(d && !isMetro ? routePoints(d).map(n => IDX[n.id]) : []);
   NODES.forEach((n, i) => {
-    if (special.has(i)) return;
+    if (hidden.has(i)) return;
     h += `<g data-node="${i}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(14).toFixed(2)}" fill="transparent"/><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(n.major ? 3.6 : 2.6).toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/><title>${esc(n.name)}</title></g>`;
   });
   const text = (x, y, size, weight, fill, s) => `<text x="${f1(x)}" y="${f1(y)}" font-size="${size.toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="${weight}" fill="${fill}" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(s)}</text>`;
-  NODES.forEach((n, i) => { if (!special.has(i) && (n.major || zoomed || labelled.has(i))) h += text(n.x + u(6), n.y - u(5), u(11.5), n.major ? 600 : 500, "var(--ink)", shortName(n.name)); });
+  NODES.forEach((n, i) => { if (!hidden.has(i) && (n.major || zoomed || labelled.has(i))) h += text(n.x + u(6), n.y - u(5), u(11.5), n.major ? 600 : 500, "var(--ink)", shortName(n.name)); });
   special.forEach((lab, i) => {
-    const n = NODES[i], r = u(lab.length > 1 ? 13 : 11), stop = /^\d$/.test(lab);
-    h += `<g data-node="${i}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${r.toFixed(2)}" fill="${stop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${f1(n.x)}" y="${f1(n.y + u(4))}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${stop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;
+    const n = PL[i], r = u(lab.length > 1 ? 13 : 11), stop = /^\d$/.test(lab);
+    h += `<g data-place="${n.id}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${r.toFixed(2)}" fill="${stop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${f1(n.x)}" y="${f1(n.y + u(4))}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${stop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;
     h += text(n.x + r + u(4), n.y + u(4), u(12.5), 600, "var(--accent)", shortName(n.name));
   });
   animateRoute = false;
@@ -1197,7 +1342,7 @@ svg.addEventListener("pointerdown", e => {
   svg.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   moved = false;
-  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, view: { ...view }, target: e.target.closest("[data-node]") };
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, view: { ...view }, target: e.target.closest("[data-node],[data-place]") };
   else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), w: view.w }; drag = null; }
 });
 svg.addEventListener("pointermove", e => {
@@ -1218,14 +1363,13 @@ svg.addEventListener("pointermove", e => {
 svg.addEventListener("pointerup", e => {
   pointers.delete(e.pointerId); svg.classList.remove("dragging");
   if (pointers.size < 2) pinch = null;
-  if (drag && !moved && drag.target) tapNode(+drag.target.dataset.node);
+  if (drag && !moved && drag.target) tapPlace(drag.target.dataset.place || NODES[+drag.target.dataset.node].id);
   else if (moved) renderMap();
   drag = null;
 });
 svg.addEventListener("pointercancel", e => { pointers.delete(e.pointerId); drag = null; pinch = null; });
 svg.addEventListener("wheel", e => { e.preventDefault(); zoomAt(Math.exp(e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
-function tapNode(i) {
-  const id = NODES[i].id;
+function tapPlace(id) {
   if (state.tap === "from") update({ from: id, tap: "to" }, { refit: false });
   else if (state.tap === "to") update({ to: id }, { refit: false });
   else if (state.stops.length < 6 && !state.stops.includes(id)) update({ stops: [...state.stops, id] }, { refit: false });
@@ -1327,12 +1471,15 @@ function renderSteps() {
     });
     h += li({ cls: "dot", color: "var(--accent)" }, `${modeName[d.last.mode]} to ${esc(d.to.name)}`, `From ${esc(d.sb.name)} metro`, d.last.minutes, d.last.km, t);
   } else {
+    const local = (x, from, to) => { const [cls, lab] = band(x.free ? x.minutes / x.free : 1); return li({ cls: "dot", color: `var(--${cls})` }, "Local roads", `${esc(from)} → ${esc(to)} · ${lab.toLowerCase()} traffic`, x.minutes, x.km, x.t0); };
     d.legs.forEach((leg, i) => {
+      if (leg.pre) h += local(leg.pre, leg.pre.place.name, leg.pre.direct ? leg.pre.direct.name : nm(leg.pre.place.node));
       stretches(leg.steps).forEach(s => {
         const [cls, lab] = band(s.mult);
         h += li({ cls: "dot", color: `var(--${cls})` }, `${esc(s.road)}${s.toll ? " · toll" : ""}`, `${esc(nm(s.from))} → ${esc(nm(s.to))} · ${lab.toLowerCase()} traffic`, s.minutes, s.km, s.t0);
       });
-      if (i < d.legs.length - 1) h += `<li class="stopline"><span class="dot"></span><div>Stop ${i + 1}: ${esc(nm(current.main.order[i]))} · ${dur(state.dwell)} · leave ${clock(d.legs[i + 1].depart)}</div></li>`;
+      if (leg.post) h += local(leg.post, nm(leg.post.place.node), leg.post.place.name);
+      if (i < d.legs.length - 1) h += `<li class="stopline"><span class="dot"></span><div>Stop ${i + 1}: ${esc(PL[current.main.order[i]].name)} · ${dur(state.dwell)} · leave ${clock(d.legs[i + 1].depart)}</div></li>`;
     });
   }
   el.innerHTML = h || `<li class="stopline"><span class="dot"></span><div>Start and destination are the same place.</div></li>`;

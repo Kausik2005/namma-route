@@ -137,6 +137,8 @@ input[aria-invalid="true"] { border-color: var(--bad); }
 .legend { position: absolute; left: 10px; bottom: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; font-size: 12px; max-width: calc(100% - 20px); }
 .legend .row { gap: 10px; }
 .legend b { font-weight: 600; }
+.legend .osm-credit { color: var(--muted); font-size: 11px; }
+.legend a, footer a { color: inherit; }
 .sw { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
 .sw i { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
 .tapmode { position: absolute; left: 10px; top: 10px; }
@@ -262,15 +264,16 @@ footer p { margin: 0 0 6px; }
       </section>
 
       <footer>
-        <p>Places: every junction plus about 180 localities and landmarks and every metro station. Each one joins the road network at its nearest junction, with a short stretch on local roads at either end. Roads: a simplified network of about 110 junctions, from Nelamangala and Bidadi to Hoskote and Attibele, and the arterial roads between them (ORR, NICE Road, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd, Sarjapur Rd and others). Positions are approximate and road lengths are estimated.</p>
+        <p id="netNote">Places: every junction plus about 180 localities and landmarks and every metro station. Each one joins the road network at its nearest junction, with a short stretch on local roads at either end. Roads: a simplified network of about 110 junctions, from Nelamangala and Bidadi to Hoskote and Attibele, and the arterial roads between them (ORR, NICE Road, Hosur Rd, Bellary Rd, Old Madras Rd, Tumkur Rd, Mysore Rd, Sarjapur Rd and others). Positions are approximate and road lengths are estimated.</p>
         <p>Traffic: a typical-day model, not live data. It has morning and evening peaks, tidal flow toward the tech corridors in the morning and away in the evening, lighter weekends and the known bottlenecks.</p>
         <p>Costs are rough guides: petrol at ₹103 a litre, 14 km/l for a car and 45 km/l for a two-wheeler, Electronic City Elevated Expressway toll about ₹70 (₹30 on two wheels), NH 44 airport toll about ₹125 for cars, NICE Road about ₹90 (₹35 on two wheels), autos at ₹36 for the first 2 km then ₹18 a km, and BMRCL distance fares from ₹10 to ₹90.</p>
-        <p>Metro: the Purple, Green and Yellow lines, plus the Pink and Blue lines when you include lines being built, with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
+        <p id="metroNote">Metro: the Purple, Green and Yellow lines, plus the Pink and Blue lines when you include lines being built, with approximate station positions, typical frequencies and service from about 05:00 to 23:00. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.</p>
       </footer>
     </main>
   </div>
 </div>
 
+<script src="data/osm-bengaluru.js"></script>
 <script>
 (() => {
 "use strict";
@@ -675,23 +678,98 @@ function km(a, b) {
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * RAD) * Math.cos(b.lat * RAD) * Math.sin(dLon / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(s));
 }
-const NODES = RAW_NODES.map(([id, name, lat, lon, area, major]) => ({ id, name, lat, lon, area, major: !!major }));
-const IDX = Object.fromEntries(NODES.map((n, i) => [n.id, i]));
+// The built-in junctions are always places; they are also the road graph unless OpenStreetMap data is loaded.
+const JUNCTIONS = RAW_NODES.map(([id, name, lat, lon, area, major]) => ({ id, name, lat, lon, area, major: !!major }));
+const JIDX = Object.fromEntries(JUNCTIONS.map((n, i) => [n.id, i]));
+/* OpenStreetMap roads and metro (optional): data/osm-bengaluru.js, written by tools/import-osm.mjs.
+   Add ?net=model to the address to use the built-in network even when the file is there. */
+const OSM = (() => {
+  const d = window.OSM_BENGALURU;
+  try { if (/[?&]net=model\b/.test(location.search)) return null; } catch (e) { /* no location */ }
+  return d && d.roads && d.roads.nodes && d.roads.nodes.length > 2 && d.roads.edges && d.roads.edges.length ? d : null;
+})();
 const DETOUR = { xway: 1.12, arterial: 1.2, main: 1.25, city: 1.3 };
 const SPEED = { car: { xway: 70, arterial: 42, main: 33, city: 25 }, bike: { xway: 60, arterial: 42, main: 36, city: 29 } };
 const CONG = { car: 1.55, bike: 0.9 };
-const HUBS = ["mgroad", "bellandur", "itpl", "ecity", "manyata"].map(id => NODES[IDX[id]]);
+const HUBS = ["mgroad", "bellandur", "itpl", "ecity", "manyata"].map(id => JUNCTIONS[JIDX[id]]);
 const hubDist = n => Math.min(...HUBS.map(h => km(n, h)));
 // +1 when a direction heads toward a job hub (heavier in the morning), -1 when it heads away.
 const tidal = (from, to) => { const d = hubDist(to) - hubDist(from); return d < -0.3 ? 1 : d > 0.3 ? -1 : 0; };
 
-const EDGES = RAW_EDGES.map(([a, b, cls, h, road, flags = ""]) => {
-  const A = NODES[IDX[a]], B = NODES[IDX[b]];
+const MODEL_EDGES = RAW_EDGES.map(([a, b, cls, h, road, flags = ""]) => {
+  const A = JUNCTIONS[JIDX[a]], B = JUNCTIONS[JIDX[b]];
   if (!A || !B) throw new Error(`Unknown junction in edge ${a}-${b}`);
-  return { a: IDX[a], b: IDX[b], cls, h, road, toll: flags.includes("t"), flood: flags.includes("f"), len: km(A, B) * DETOUR[cls], tidal: [tidal(A, B), tidal(B, A)] };
+  return { a: JIDX[a], b: JIDX[b], cls, h, road, toll: flags.includes("t"), flood: flags.includes("f"), oneway: false, len: km(A, B) * DETOUR[cls], tidal: [tidal(A, B), tidal(B, A)], pts: [A, B] };
 });
+
+/* OSM roads carry no traffic knowledge, so each one borrows the bottleneck severity and flood flag of the
+   built-in road it runs along (same name nearby, or any road close by in the same direction). */
+const OSM_CLASS = ["xway", "arterial", "main", "city"];
+const DEFAULT_H = { xway: 0.12, arterial: 0.4, main: 0.42, city: 0.38 };
+const roadKey = n => n.toLowerCase().replace(/\(.*?\)/g, " ").replace(/\broad\b/g, "rd").replace(/\bmain\b/g, "").replace(/[^a-z0-9]+/g, " ").trim().split(" ").slice(0, 2).join(" ");
+function segDistKm(p, A, B) {
+  const k = Math.cos(p.lat * RAD) * 111.32, ax = (A.lon - p.lon) * k, ay = (A.lat - p.lat) * 110.57, bx = (B.lon - p.lon) * k, by = (B.lat - p.lat) * 110.57;
+  const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy, t = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0;
+  return Math.hypot(ax + t * dx, ay + t * dy);
+}
+const bearing = (A, B) => Math.atan2((B.lat - A.lat) * 110.57, (B.lon - A.lon) * Math.cos(A.lat * RAD) * 111.32);
+const sameDirection = (x, y) => { const d = Math.abs(x - y) % Math.PI; return Math.min(d, Math.PI - d) < 0.55; };
+const MODEL_KEYS = MODEL_EDGES.map(E => roadKey(E.road));
+const MODEL_BOX = MODEL_EDGES.map(E => { const A = JUNCTIONS[E.a], B = JUNCTIONS[E.b], m = 0.012; return [Math.min(A.lat, B.lat) - m, Math.min(A.lon, B.lon) - m, Math.max(A.lat, B.lat) + m, Math.max(A.lon, B.lon) + m]; });
+function calibrate(E) {
+  const mid = E.pts[Math.floor(E.pts.length / 2)], dirE = bearing(E.pts[0], E.pts[E.pts.length - 1]), key = roadKey(E.road);
+  let best = null, bd = Infinity;
+  MODEL_EDGES.forEach((M, i) => {
+    const bx = MODEL_BOX[i];
+    if (mid.lat < bx[0] || mid.lon < bx[1] || mid.lat > bx[2] || mid.lon > bx[3]) return;
+    const A = JUNCTIONS[M.a], B = JUNCTIONS[M.b], d = segDistKm(mid, A, B);
+    const named = key && MODEL_KEYS[i] === key;
+    if (d > (named ? 1.2 : 0.35) || (!named && !sameDirection(dirE, bearing(A, B)))) return;
+    const score = d - (named ? 1 : 0);
+    if (score < bd) { bd = score; best = M; }
+  });
+  E.h = best ? best.h : DEFAULT_H[E.cls];
+  E.flood = !!(best && best.flood);
+}
+function osmGraph() {
+  const { nodes, edges, names } = OSM.roads;
+  const N = [];
+  for (let i = 0; i < nodes.length; i += 2) N.push({ id: `osm-${i / 2}`, name: "", lat: nodes[i], lon: nodes[i + 1], area: null, major: false });
+  const E = [];
+  for (const [a, b, c, ni, flags, meters, geom = []] of edges) {
+    if (!N[a] || !N[b] || a === b) continue;
+    const pts = [N[a]];
+    let lat = Math.round(N[a].lat * 1e5), lon = Math.round(N[a].lon * 1e5);
+    for (let k = 0; k + 1 < geom.length; k += 2) { lat += geom[k]; lon += geom[k + 1]; pts.push({ lat: lat / 1e5, lon: lon / 1e5 }); }
+    pts.push(N[b]);
+    const cls = OSM_CLASS[c] || "city", e = { a, b, cls, road: names[ni] || "Road", toll: !!(flags & 2), oneway: !!(flags & 1), len: Math.max(0.01, meters / 1000, km(N[a], N[b])), tidal: [tidal(N[a], N[b]), tidal(N[b], N[a])], pts };
+    calibrate(e);
+    E.push(e);
+  }
+  return [N, E];
+}
+const [NODES, EDGES] = OSM ? osmGraph() : [JUNCTIONS, MODEL_EDGES];
 const ADJ = NODES.map(() => []);
-EDGES.forEach((e, i) => { ADJ[e.a].push({ e: i, to: e.b, dir: 0 }); ADJ[e.b].push({ e: i, to: e.a, dir: 1 }); });
+EDGES.forEach((e, i) => { ADJ[e.a].push({ e: i, to: e.b, dir: 0 }); if (!e.oneway) ADJ[e.b].push({ e: i, to: e.a, dir: 1 }); });
+
+/* Metro stations from OSM replace the built-in positions line by line; frequencies, colours and the
+   "being built" switch stay as set above. Stations of different lines within 300 m count as one interchange. */
+if (OSM && OSM.metro && OSM.metro.lines) {
+  for (const ol of OSM.metro.lines) {
+    if (!ol.stations || ol.stations.length < 2) continue;
+    const L = METRO.find(l => l.id === ol.id);
+    if (L) L.stations = ol.stations.map(s => s.slice());
+    else METRO.push({ id: ol.id, name: ol.name, color: ol.colour, run: 2.2, headway: [6, 8], upcoming: !ol.built, stations: ol.stations.map(s => s.slice()) });
+  }
+  const seen = [];
+  METRO.forEach(L => {
+    L.stations.forEach(s => {
+      const twin = seen.find(t => t.line !== L && km({ lat: s[1], lon: s[2] }, t) < 0.3);
+      if (twin) s[0] = twin.name;
+    });
+    L.stations.forEach(([name, lat, lon]) => seen.push({ name, lat, lon, line: L }));
+  });
+}
 
 /* ============================================================
    Traffic model
@@ -709,34 +787,78 @@ function level(h, day, tid) {
   return 0.3 * active + am * fa + pm * fp;
 }
 const clockParts = (tMin, day) => ({ h: (((tMin % 1440) + 1440) % 1440) / 60, day: (((day + Math.floor(tMin / 1440)) % 7) + 7) % 7 });
+// With the large OSM network, congestion levels come from a per-minute table (linear in between).
+const LEVEL_TABLE = OSM ? (() => {
+  const t = new Float64Array(3 * 10081);
+  for (let tid = -1; tid <= 1; tid++) for (let m = 0; m <= 10080; m++) t[(tid + 1) * 10081 + m] = level((m % 1440) / 60, Math.floor(m / 1440) % 7, tid);
+  return t;
+})() : null;
+function levelAt(tMin, day0, tid) {
+  const mw = (((day0 * 1440 + tMin) % 10080) + 10080) % 10080, i = Math.floor(mw), f = mw - i, base = (tid + 1) * 10081 + i;
+  return LEVEL_TABLE[base] + (LEVEL_TABLE[base + 1] - LEVEL_TABLE[base]) * f;
+}
 function edgeMult(E, dir, tMin, o) {
-  const { h, day } = clockParts(tMin, o.day);
-  const lv = level(h, day, E.tidal[dir]);
+  let lv;
+  if (LEVEL_TABLE) lv = levelAt(tMin, o.day, E.tidal[dir]);
+  else { const { h, day } = clockParts(tMin, o.day); lv = level(h, day, E.tidal[dir]); }
   let m = 1 + CONG[o.vehicle] * E.h * lv * (o.rain ? 1.3 : 1);
   if (o.rain) { m *= 1.12; if (E.flood) m *= 1.15 + 0.5 * lv; }
   return m;
 }
-const freeTime = (E, o) => E.len / SPEED[o.vehicle][E.cls] * 60;
+EDGES.forEach(E => { E.ft = { car: E.len / SPEED.car[E.cls] * 60, bike: E.len / SPEED.bike[E.cls] * 60 }; });
+const freeTime = (E, o) => E.ft[o.vehicle];
 const edgeTime = (E, dir, tMin, o) => freeTime(E, o) * edgeMult(E, dir, tMin, o);
 
 /* ============================================================
    Road routing (time-dependent Dijkstra; labels are clock minutes)
    ============================================================ */
+// Binary min-heap of node ids keyed by label (lazy deletion: stale entries are skipped when popped).
+function makeHeap() {
+  let ids = new Int32Array(64), keys = new Float64Array(64), size = 0;
+  return {
+    get size() { return size; },
+    push(id, key) {
+      if (size === ids.length) { const i2 = new Int32Array(size * 2), k2 = new Float64Array(size * 2); i2.set(ids); k2.set(keys); ids = i2; keys = k2; }
+      let i = size++;
+      while (i > 0) { const p = (i - 1) >> 1; if (keys[p] <= key) break; ids[i] = ids[p]; keys[i] = keys[p]; i = p; }
+      ids[i] = id; keys[i] = key;
+    },
+    pop() {
+      const top = ids[0], id = ids[--size], key = keys[size];
+      let i = 0;
+      for (;;) {
+        let c = 2 * i + 1;
+        if (c >= size) break;
+        if (c + 1 < size && keys[c + 1] < keys[c]) c++;
+        if (keys[c] >= key) break;
+        ids[i] = ids[c]; keys[i] = keys[c]; i = c;
+      }
+      ids[i] = id; keys[i] = key;
+      return top;
+    },
+  };
+}
 function route(src, dst, t0, o, { metric = "time", penalty = null } = {}) {
   if (src === dst) return [];
   const n = NODES.length, best = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), pdir = new Int8Array(n), done = new Uint8Array(n);
+  const heap = makeHeap();
+  // On the OSM network, A*: straight-line distance at the top speed is a lower bound on what is left.
+  const D = NODES[dst], hk = !OSM ? 0 : metric === "time" ? 60 / Math.max(...Object.values(SPEED[o.vehicle])) : 1;
+  const hcache = hk ? new Float64Array(n).fill(-1) : null;
+  const hOf = v => { if (!hk) return 0; if (hcache[v] < 0) hcache[v] = km(NODES[v], D) * hk; return hcache[v]; };
   best[src] = metric === "time" ? t0 : 0;
-  for (;;) {
-    let u = -1, bv = Infinity;
-    for (let i = 0; i < n; i++) if (!done[i] && best[i] < bv) { bv = best[i]; u = i; }
-    if (u < 0 || u === dst) break;
+  heap.push(src, best[src] + hOf(src));
+  while (heap.size) {
+    const u = heap.pop();
+    if (done[u]) continue;
+    if (u === dst) break;
     done[u] = 1;
     for (const { e, to, dir } of ADJ[u]) {
       const E = EDGES[e];
       if (done[to] || (o.avoidTolls && E.toll)) continue;
       let c = metric === "time" ? edgeTime(E, dir, best[u], o) : E.len;
       if (penalty && penalty.has(e)) c *= 1.6;
-      if (best[u] + c < best[to]) { best[to] = best[u] + c; prev[to] = e; pdir[to] = dir; }
+      if (best[u] + c < best[to]) { best[to] = best[u] + c; prev[to] = e; pdir[to] = dir; heap.push(to, best[to] + hOf(to)); }
     }
   }
   if (best[dst] === Infinity) return null;
@@ -763,11 +885,26 @@ const opts = st => ({ vehicle: st.vehicle, avoidTolls: st.tolls, rain: st.rain, 
 const optsKey = o => [o.vehicle, o.avoidTolls, o.rain, o.day].join();
 const routeCache = new Map();
 // Fastest leg a->b leaving at t. Paths are cached per 5-minute bucket and re-timed exactly.
-function leg(a, b, t, o) {
-  const key = `${optsKey(o)}|${a}|${b}|${Math.round(t / 5)}`;
+const cachedRoute = (a, b, t, o, bucket) => {
+  const key = `${optsKey(o)}|${a}|${b}|${Math.round(t / bucket)}`;
   if (!routeCache.has(key)) { if (routeCache.size > 60000) routeCache.clear(); routeCache.set(key, route(a, b, t, o)); }
-  const steps = routeCache.get(key);
-  return steps ? evalPath(steps, t, o) : null;
+  return routeCache.get(key);
+};
+// Built-in network: a fresh route every 5 minutes of departure time. OSM network (far larger): candidate routes
+// are found at the whole hours either side, once per day type (weekdays share a traffic shape, so do weekends),
+// then each is timed exactly for the actual day and minute and the quicker one is kept.
+const ANCHOR = OSM ? 60 : 0;
+function anchorRoute(a, b, t, o) {
+  const { h, day } = clockParts(t, o.day), weekend = day >= 5;
+  const key = `${o.vehicle},${o.avoidTolls},${o.rain}|${a}|${b}|${weekend}|${Math.round(h * 60)}`;
+  if (!routeCache.has(key)) { if (routeCache.size > 6000) routeCache.clear(); routeCache.set(key, route(a, b, h * 60, { ...o, day: weekend ? 5 : 1 })); }
+  return routeCache.get(key);
+}
+function leg(a, b, t, o) {
+  if (!ANCHOR) { const steps = cachedRoute(a, b, t, o, 5); return steps ? evalPath(steps, t, o) : null; }
+  const lo = Math.floor(t / ANCHOR) * ANCHOR, p1 = anchorRoute(a, b, lo, o), p2 = anchorRoute(a, b, lo + ANCHOR, o);
+  const r1 = p1 && evalPath(p1, t, o), r2 = p2 && !(p1 && samePath(p1, p2)) ? evalPath(p2, t, o) : null;
+  return r1 && r2 ? (r2.arrive < r1.arrive ? r2 : r1) : r1 || r2;
 }
 // Short stretch on local roads between a place and its junction (or between two nearby places).
 function localLeg(straightKm, tMin, o) {
@@ -837,7 +974,23 @@ const ST_INDEX = new Map(ST.map((s, k) => [`${s.line.id}:${s.i}`, k]));
 const STATIONS = [...ST_BY_NAME.keys()].map(name => { const s = ST[ST_BY_NAME.get(name)[0]]; return { name, lat: s.lat, lon: s.lon, lines: ST_BY_NAME.get(name).map(k => ST[k].line) }; });
 /* Places: every junction, locality, landmark and metro station. Each joins the network at its nearest junction. */
 const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const nearestNode = p => { let bi = 0, bd = Infinity; NODES.forEach((n, i) => { const d = km(p, n); if (d < bd) { bd = d; bi = i; } }); return [bi, bd]; };
+const nearestNode = (() => {
+  if (!OSM) return p => { let bi = 0, bd = Infinity; NODES.forEach((n, i) => { const d = km(p, n); if (d < bd) { bd = d; bi = i; } }); return [bi, bd]; };
+  const C = 0.01, cell = (y, x) => `${y},${x}`, grid = new Map();
+  NODES.forEach((n, i) => { const k = cell(Math.floor(n.lat / C), Math.floor(n.lon / C)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(i); });
+  return p => {
+    const cy = Math.floor(p.lat / C), cx = Math.floor(p.lon / C);
+    let bi = 0, bd = Infinity;
+    for (let r = 0; r < 80; r++) {
+      for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
+        if (Math.max(Math.abs(y - cy), Math.abs(x - cx)) !== r) continue;
+        for (const i of grid.get(cell(y, x)) || []) { const d = km(p, NODES[i]); if (d < bd) { bd = d; bi = i; } }
+      }
+      if (bd <= r * C * 107) break; // nothing in a farther ring can be closer
+    }
+    return [bi, bd];
+  };
+})();
 const PL = [];
 const seenName = new Set(), seenId = new Set();
 function addPlace(pl) {
@@ -845,16 +998,25 @@ function addPlace(pl) {
   if (seenName.has(key) || seenId.has(pl.id)) return;
   seenName.add(key); seenId.add(pl.id);
   if (pl.node == null) { const [i, d] = nearestNode(pl); pl.node = i; pl.snapKm = d; }
-  if (!pl.area) pl.area = NODES[pl.node].area;
+  if (!pl.area) pl.area = NODES[pl.node].area || "Central";
   PL.push(pl);
 }
-NODES.forEach((n, i) => addPlace({ id: n.id, name: n.name, lat: n.lat, lon: n.lon, area: n.area, kind: "junction", node: i, snapKm: 0 }));
+JUNCTIONS.forEach((n, i) => addPlace({ id: n.id, name: n.name, lat: n.lat, lon: n.lon, area: n.area, kind: "junction", major: n.major, ...(OSM ? {} : { node: i, snapKm: 0 }) }));
 EXTRA_PLACES.forEach(([name, lat, lon, area, kind = "area"]) => addPlace({ id: slug(name), name, lat, lon, area, kind }));
 STATIONS.forEach(st => {
   const upcoming = st.lines.every(L => L.upcoming);
   st.placeId = "m-" + slug(st.name);
   addPlace({ id: st.placeId, name: `${st.name} metro${upcoming ? " (being built)" : ""}`, lat: st.lat, lon: st.lon, kind: "station", upcoming });
 });
+// OSM junctions have no names of their own: directions call them after the nearest locality, landmark or junction.
+if (OSM) {
+  const named = PL.filter(p => p.kind !== "station");
+  NODES.forEach(n => {
+    let b = named[0], bd = Infinity;
+    for (const p of named) { const d = Math.abs(p.lat - n.lat) + Math.abs(p.lon - n.lon); if (d < bd) { bd = d; b = p; } }
+    n.name = b.name; n.area = b.area;
+  });
+}
 const PIDX = Object.fromEntries(PL.map((p, i) => [p.id, i]));
 const PBYNAME = new Map(PL.map((p, i) => [p.name.toLowerCase(), i]));
 const place = id => PL[PIDX[id]];
@@ -933,6 +1095,8 @@ const rideKm = ride => ride.rides.reduce((s, r) => s + r.path.slice(1).reduce((a
    ============================================================ */
 const PETROL = 103, MILEAGE = { car: 14, bike: 45 };
 const TOLL_FEE = { "Electronic City Elevated Expressway": { car: 70, bike: 30 }, "Bellary Rd (NH 44)": { car: 125, bike: 0 }, "NICE Rd": { car: 90, bike: 35 } };
+// Other tolled roads (OSM names): matched by name, otherwise a typical Bengaluru plaza fee.
+const tollFee = road => TOLL_FEE[road] || (/nice|peripheral|bmic/i.test(road) ? TOLL_FEE["NICE Rd"] : /elevated|hosur/i.test(road) ? TOLL_FEE["Electronic City Elevated Expressway"] : /bellary|ballari|airport|nh ?44|hyderabad/i.test(road) ? TOLL_FEE["Bellary Rd (NH 44)"] : { car: 70, bike: 30 });
 const autoFare = roadKm => Math.round(roadKm <= 2 ? 36 : 36 + (roadKm - 2) * 18);
 const METRO_FARE = [[2, 10], [4, 20], [6, 30], [8, 40], [10, 50], [15, 60], [20, 70], [25, 80]];
 const metroFare = rideKm => (METRO_FARE.find(([d]) => rideKm <= d) || [0, 90])[1];
@@ -940,7 +1104,7 @@ function roadCost(trip, vehicle) {
   const steps = (trip.legs || [trip]).flatMap(l => l.steps);
   const fuel = trip.km / MILEAGE[vehicle] * PETROL;
   const seen = new Set();
-  const tolls = steps.reduce((a, s) => { const E = EDGES[s.e], fee = E.toll && TOLL_FEE[E.road]; if (!fee || seen.has(E.road)) return a; seen.add(E.road); return a + fee[vehicle]; }, 0);
+  const tolls = steps.reduce((a, s) => { const E = EDGES[s.e], fee = E.toll && tollFee(E.road); if (!fee || seen.has(E.road)) return a; seen.add(E.road); return a + fee[vehicle]; }, 0);
   return { fuel: Math.round(fuel), tolls, total: Math.round(fuel) + tolls };
 }
 function metroCost(m, vehicle) {
@@ -981,6 +1145,7 @@ const band = m => m < 1.35 ? ["good", "Light"] : m < 1.9 ? ["warn", "Moderate"] 
 const ratioBand = r => r < 1.15 ? "good" : r < 1.5 ? "warn" : r < 2 ? "bad" : "worst";
 const COLOR = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", worst: "var(--worst)" };
 const nm = i => NODES[i].name;
+const between = (a, b) => { const x = shortName(nm(a)), y = shortName(nm(b)); return x === y ? `around ${x}` : `${x} → ${y}`; };
 const shortName = s => s.replace(/ \((?!ITPL|KIA|Forum|Sony World).*\)$/, "").replace("Kempegowda Airport (KIA)", "Airport (KIA)");
 const $ = s => document.querySelector(s);
 
@@ -990,6 +1155,13 @@ const $ = s => document.querySelector(s);
 const AREAS = ["Central", "East", "South", "North", "West"];
 const KIND = { junction: "junction", area: "area", landmark: "landmark", station: "metro" };
 $("#placeList").innerHTML = PL.slice().sort((x, y) => x.name.localeCompare(y.name)).map(p => `<option value="${esc(p.name)}" label="${p.area} · ${KIND[p.kind]}"></option>`).join("");
+if (OSM) {
+  const m = OSM.meta || {}, when = m.osmTimestamp ? m.osmTimestamp.slice(0, 10) : m.imported;
+  $("#netNote").innerHTML = `Roads: ${EDGES.length.toLocaleString("en-IN")} stretches of road between ${NODES.length.toLocaleString("en-IN")} junctions from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> (${esc((m.classes || []).join(", ") || "main roads")}${when ? `, data as of ${esc(when)}` : ""}), with real road lengths and one-way streets. Each road takes its traffic behaviour from the built-in model of the road it follows. Places: the built-in junctions plus about 180 localities and landmarks and every metro station, each joined to the nearest OSM junction with a short stretch on local roads at either end. <a href="?net=model">Use the built-in road model instead</a>.`;
+  $("#metroNote").innerHTML = `Metro: station positions and order from OpenStreetMap where it maps the line, otherwise built-in; typical frequencies and service from about 05:00 to 23:00. The Pink and Blue lines count only when you include lines being built. The first and last mile is a walk under 1.3 km, otherwise an auto or your two-wheeler through traffic. Check BMRCL for exact timings.`;
+} else if (window.OSM_BENGALURU) {
+  $("#netNote").insertAdjacentHTML("beforeend", ` <a href="?">Use the OpenStreetMap roads instead</a>.`);
+}
 $("#days").innerHTML = DAYS.map((d, i) => `<label><input type="radio" name="day" value="${i}"><span>${d}</span></label>`).join("");
 
 function syncControls() {
@@ -1192,7 +1364,7 @@ function renderSummary() {
       chips += `<span class="chip"><i style="background:var(--good)"></i>${gain >= 1 ? `Reordered stops save ${dur(gain)}` : "Your stop order is already the fastest"}</span>`;
     }
     const worst = d.legs.flatMap(l => stretches(l.steps)).filter(s => s.lost >= 2).sort((a, b) => b.lost - a.lost).slice(0, 3);
-    if (worst.length) losses = `<div class="losses"><div class="label">Where you lose time</div><ul>${worst.map(s => `<li><span class="plus">+${Math.round(s.lost)} min</span><span><b>${esc(s.road)}</b> · ${esc(shortName(nm(s.from)))} → ${esc(shortName(nm(s.to)))}, about ${clock(s.t0)}</span></li>`).join("")}</ul></div>`;
+    if (worst.length) losses = `<div class="losses"><div class="label">Where you lose time</div><ul>${worst.map(s => `<li><span class="plus">+${Math.round(s.lost)} min</span><span><b>${esc(s.road)}</b> · ${esc(between(s.from, s.to))}, about ${clock(s.t0)}</span></li>`).join("")}</ul></div>`;
     const bi = bestInWindow(), gain = c.series.road[c.depSlot] - c.series.road[bi];
     callout = c.arriveBy != null
       ? `<div class="callout"><div class="big">${clock(c.t0)}</div><p><b>Leave by ${clock(c.t0)}</b> to reach ${esc(place(state.to).name)} by ${clock(c.arriveBy)} on a typical ${DAYS[state.day]}.${c.metro ? ` By metro, leave by ${clock(c.metro.depart)}.` : ""} Add 10 to 15 minutes if you can't be late.</p><span></span></div>`
@@ -1236,9 +1408,17 @@ $("#summary").addEventListener("click", e => {
 const svg = $("#map");
 const K = 2800, LON0 = 77.44, LAT0 = 13.24, COS = Math.cos(13 * RAD);
 const px = p => (p.lon - LON0) * COS * K, py = p => (LAT0 - p.lat) * K;
+const f1 = v => v.toFixed(1);
 [...NODES, ...ST, ...STATIONS, ...PL].forEach(n => { n.x = px(n); n.y = py(n); });
+EDGES.forEach(E => {
+  E.pts.forEach(p => { if (p.x === undefined) { p.x = px(p); p.y = py(p); } });
+  const xs = E.pts.map(p => p.x), ys = E.pts.map(p => p.y);
+  E.bb = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  E.svg = E.pts.map(p => `${f1(p.x)},${f1(p.y)}`).join(" ");
+});
+const JPL = PL.filter(p => p.kind === "junction"); // junction markers on the map
 let view = { x: 0, y: 0, w: 900, h: 900 };
-const CORE = NODES.filter(n => n.lat < 13.08);
+const CORE = JPL.filter(n => n.lat < 13.08);
 function fit(points, padFrac = 0.12) {
   const xs = points.map(p => p.x), ys = points.map(p => p.y);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -1255,7 +1435,6 @@ function routePoints(d) {
   return [...[...ids].map(i => NODES[i]), ...[PIDX[state.from], PIDX[state.to], ...current.main.order].map(i => PL[i])];
 }
 const WIDTH = { xway: 3.4, arterial: 2.8, main: 2, city: 1.4 };
-const f1 = v => v.toFixed(1);
 function renderMap() {
   const d = current.main ? displayed() : null, isMetro = d && d.kind === "metro";
   if (autoFit) { fit(d ? routePoints(d) : CORE, 0.16); autoFit = false; }
@@ -1266,11 +1445,17 @@ function renderMap() {
   let h = `<rect x="${view.x - 5000}" y="${view.y - 5000}" width="${view.w + 10000}" height="${view.h + 10000}" fill="var(--map)"/>`;
   const blobs = (arr, fill) => arr.map(([lat, lon, rx, ry, rot]) => { const x = px({ lon }), y = py({ lat }); return `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rx * K / 111)}" ry="${f1(ry * K / 111)}" transform="rotate(${rot} ${f1(x)} ${f1(y)})" fill="${fill}"/>`; }).join("");
   h += blobs(PARKS, "var(--park)") + blobs(LAKES, "var(--water)");
-  // Roads, coloured by traffic at the chosen time.
+  // Roads, coloured by traffic at the chosen time. With the OSM network, only what is on screen is drawn,
+  // and minor roads only once you zoom in.
+  const mx = view.w * 0.1, vx0 = view.x - mx, vy0 = view.y - mx, vx1 = view.x + view.w + mx, vy1 = view.y + view.h + mx;
+  const minorOK = !OSM || view.w < 450, tips = !OSM || view.w < 450;
   EDGES.forEach((E, i) => {
-    const A = NODES[E.a], B = NODES[E.b], m = (edgeMult(E, 0, t0, o) + edgeMult(E, 1, t0, o)) / 2, [cls, lab] = band(m);
-    const dim = d && (isMetro || !onRoute.has(i));
-    h += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${COLOR[cls]}" stroke-width="${WIDTH[E.cls]}" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="${dim ? 0.32 : 0.85}"${E.toll ? ` stroke-dasharray="6 3"` : ""}><title>${esc(E.road)}: ${lab.toLowerCase()} traffic at ${clock(t0)}</title></line>`;
+    const on = onRoute.has(i);
+    if (OSM && !on && (E.bb[2] < vx0 || E.bb[0] > vx1 || E.bb[3] < vy0 || E.bb[1] > vy1 || (E.cls === "city" && !minorOK))) return;
+    const m = E.oneway ? edgeMult(E, 0, t0, o) : (edgeMult(E, 0, t0, o) + edgeMult(E, 1, t0, o)) / 2, [cls, lab] = band(m);
+    const dim = d && (isMetro || !on);
+    const tip = tips || on ? `<title>${esc(E.road)}${E.oneway ? " (one way)" : ""}: ${lab.toLowerCase()} traffic at ${clock(t0)}</title>` : "";
+    h += `<polyline points="${E.svg}" fill="none" stroke="${COLOR[cls]}" stroke-width="${WIDTH[E.cls]}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="${dim ? 0.32 : 0.85}"${E.toll ? ` stroke-dasharray="6 3"` : ""}>${tip}</polyline>`;
   });
   // Metro lines drawn as rails: line colour with a dashed centre.
   METRO.filter(lineOn).forEach(L => {
@@ -1288,7 +1473,8 @@ function renderMap() {
   if (zoomed) STATIONS.filter(s => s.lines.some(lineOn)).forEach(s => { h += `<circle data-place="${s.placeId}" cx="${f1(s.x)}" cy="${f1(s.y)}" r="${u(s.lines.length > 1 ? 3.4 : 2.2).toFixed(2)}" fill="var(--map)" stroke="${s.lines[0].color}" stroke-width="1.4" vector-effect="non-scaling-stroke"><title>${esc(s.name)} metro</title></circle>`; });
   const anim = animateRoute ? ` class="route-line" pathLength="2400"` : "";
   const thick = (pts, color, dash = "") => `<polyline points="${pts}" fill="none" stroke="var(--surface)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><polyline${dash ? "" : anim} points="${pts}" fill="none" stroke="${color}" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
-  const poly = steps => steps.length ? [NODES[steps[0].from], ...steps.map(s => NODES[s.to])].map(n => `${f1(n.x)},${f1(n.y)}`).join(" ") : "";
+  // Route line through each road's shape, in the direction of travel.
+  const poly = steps => steps.flatMap((s, k) => { const p = EDGES[s.e].pts, q = s.dir ? p.slice().reverse() : p; return k ? q.slice(1) : q; }).map(n => `${f1(n.x)},${f1(n.y)}`).join(" ");
   const special = new Map();
   if (d && isMetro) {
     h += thick(`${f1(d.from.x)},${f1(d.from.y)} ${f1(d.sa.x)},${f1(d.sa.y)}`, "var(--accent)", "1 7");
@@ -1307,14 +1493,16 @@ function renderMap() {
     if (!isMetro) current.main.order.forEach((i, n) => special.set(i, String(n + 1)));
     special.set(PIDX[state.to], state.to === state.from ? "A/B" : "B");
   }
-  const hidden = new Set([...special.keys()].filter(i => PL[i].kind === "junction").map(i => PL[i].node));
-  const labelled = new Set(d && !isMetro ? routePoints(d).map(n => IDX[n.id]) : []);
-  NODES.forEach((n, i) => {
-    if (hidden.has(i)) return;
-    h += `<g data-node="${i}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(14).toFixed(2)}" fill="transparent"/><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(n.major ? 3.6 : 2.6).toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/><title>${esc(n.name)}</title></g>`;
+  // Junction markers (the named built-in junctions); those the route passes get a label.
+  const hidden = new Set([...special.keys()].filter(i => PL[i].kind === "junction").map(i => PL[i].id));
+  const routeNodes = new Set(d && !isMetro ? d.legs.flatMap(l => l.steps.flatMap(s => [s.from, s.to])) : []);
+  const labelled = new Set(JPL.filter(p => routeNodes.has(p.node) && p.snapKm < 0.4).map(p => p.id));
+  JPL.forEach(n => {
+    if (hidden.has(n.id)) return;
+    h += `<g data-place="${n.id}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(14).toFixed(2)}" fill="transparent"/><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${u(n.major ? 3.6 : 2.6).toFixed(2)}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/><title>${esc(n.name)}</title></g>`;
   });
   const text = (x, y, size, weight, fill, s) => `<text x="${f1(x)}" y="${f1(y)}" font-size="${size.toFixed(2)}" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="${weight}" fill="${fill}" stroke="var(--map)" stroke-width="${u(3.2).toFixed(2)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(s)}</text>`;
-  NODES.forEach((n, i) => { if (!hidden.has(i) && (n.major || zoomed || labelled.has(i))) h += text(n.x + u(6), n.y - u(5), u(11.5), n.major ? 600 : 500, "var(--ink)", shortName(n.name)); });
+  JPL.forEach(n => { if (!hidden.has(n.id) && (n.major || zoomed || labelled.has(n.id))) h += text(n.x + u(6), n.y - u(5), u(11.5), n.major ? 600 : 500, "var(--ink)", shortName(n.name)); });
   special.forEach((lab, i) => {
     const n = PL[i], r = u(lab.length > 1 ? 13 : 11), stop = /^\d$/.test(lab);
     h += `<g data-place="${n.id}"><circle cx="${f1(n.x)}" cy="${f1(n.y)}" r="${r.toFixed(2)}" fill="${stop ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/><text x="${f1(n.x)}" y="${f1(n.y + u(4))}" text-anchor="middle" font-size="${u(11).toFixed(2)}" font-family="IBM Plex Mono, monospace" font-weight="600" fill="${stop ? "var(--accent)" : "var(--accent-ink)"}" pointer-events="none">${lab}</text><title>${esc(n.name)}</title></g>`;
@@ -1326,6 +1514,7 @@ function renderMap() {
   const altKey = current.alt && chosen !== "alt" && !state.stops.length && !isMetro;
   $("#legend").innerHTML = `<div><b>Traffic at ${DAYS[state.day]} ${clock(t0)}</b></div>
     <div class="row"><span class="sw"><i style="background:var(--good)"></i>Light</span><span class="sw"><i style="background:var(--warn)"></i>Moderate</span><span class="sw"><i style="background:var(--bad)"></i>Heavy</span><span class="sw"><i style="background:var(--worst)"></i>Jammed</span></div>
+    ${OSM ? `<div class="row osm-credit">Roads and metro © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>` : ""}
     <div class="row"><span class="sw"><i style="background:var(--accent);height:5px"></i>Your route</span>${altKey ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 7px)"></i>Alternative</span>` : ""}<span class="sw"><i style="background:linear-gradient(90deg,var(--m-purple) 0 33%,var(--m-green) 33% 66%,var(--m-yellow) 66%)"></i>Metro</span>${state.upcoming ? `<span class="sw"><i style="background:repeating-linear-gradient(90deg,var(--m-pink) 0 5px,var(--m-blue) 5px 10px)"></i>Being built</span>` : ""}</div>`;
 }
 
@@ -1342,7 +1531,7 @@ svg.addEventListener("pointerdown", e => {
   svg.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   moved = false;
-  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, view: { ...view }, target: e.target.closest("[data-node],[data-place]") };
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, view: { ...view }, target: e.target.closest("[data-place]") };
   else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), w: view.w }; drag = null; }
 });
 svg.addEventListener("pointermove", e => {
@@ -1363,7 +1552,7 @@ svg.addEventListener("pointermove", e => {
 svg.addEventListener("pointerup", e => {
   pointers.delete(e.pointerId); svg.classList.remove("dragging");
   if (pointers.size < 2) pinch = null;
-  if (drag && !moved && drag.target) tapPlace(drag.target.dataset.place || NODES[+drag.target.dataset.node].id);
+  if (drag && !moved && drag.target) tapPlace(drag.target.dataset.place);
   else if (moved) renderMap();
   drag = null;
 });
@@ -1378,7 +1567,7 @@ const centre = () => { const r = svg.getBoundingClientRect(); return [r.left + r
 $("#zin").addEventListener("click", () => zoomAt(0.7, ...centre()));
 $("#zout").addEventListener("click", () => zoomAt(1 / 0.7, ...centre()));
 $("#zfit").addEventListener("click", () => { autoFit = true; renderMap(); });
-$("#zall").addEventListener("click", () => { fit(NODES, 0.04); renderMap(); });
+$("#zall").addEventListener("click", () => { fit(JPL, 0.04); renderMap(); });
 let resizeTimer;
 new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (current) { autoFit = true; renderMap(); } }, 120); }).observe(svg);
 
@@ -1476,7 +1665,7 @@ function renderSteps() {
       if (leg.pre) h += local(leg.pre, leg.pre.place.name, leg.pre.direct ? leg.pre.direct.name : nm(leg.pre.place.node));
       stretches(leg.steps).forEach(s => {
         const [cls, lab] = band(s.mult);
-        h += li({ cls: "dot", color: `var(--${cls})` }, `${esc(s.road)}${s.toll ? " · toll" : ""}`, `${esc(nm(s.from))} → ${esc(nm(s.to))} · ${lab.toLowerCase()} traffic`, s.minutes, s.km, s.t0);
+        h += li({ cls: "dot", color: `var(--${cls})` }, `${esc(s.road)}${s.toll ? " · toll" : ""}`, `${esc(between(s.from, s.to))} · ${lab.toLowerCase()} traffic`, s.minutes, s.km, s.t0);
       });
       if (leg.post) h += local(leg.post, nm(leg.post.place.node), leg.post.place.name);
       if (i < d.legs.length - 1) h += `<li class="stopline"><span class="dot"></span><div>Stop ${i + 1}: ${esc(PL[current.main.order[i]].name)} · ${dur(state.dwell)} · leave ${clock(d.legs[i + 1].depart)}</div></li>`;

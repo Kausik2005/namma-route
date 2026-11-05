@@ -4,7 +4,7 @@ A Bengaluru commute planner that answers three questions: which road, which hour
 
 | Page | Data | Needs |
 | --- | --- | --- |
-| `index.html` | ~420 searchable places (localities, landmarks, metro stations) on a built-in model of ~110 junctions (Nelamangala to Hoskote, Bidadi to Attibele), the arterial roads and NICE Road, and the Purple, Green and Yellow metro lines (Pink and Blue optional), with a typical-day traffic model | Nothing; works offline |
+| `index.html` | ~420 searchable places (localities, landmarks, metro stations) on a built-in model of ~110 junctions (Nelamangala to Hoskote, Bidadi to Attibele), the arterial roads and NICE Road, and the Purple, Green and Yellow metro lines (Pink and Blue optional), with a typical-day traffic model. Can use OpenStreetMap roads and stations instead (see below) | Nothing; works offline |
 | `live/index.html` | Google Routes API (live and predicted traffic, transit) and Maps JavaScript API (live traffic layer) | Your Google Maps API key |
 
 ## Features
@@ -18,6 +18,34 @@ A Bengaluru commute planner that answers three questions: which road, which hour
 - **Trip cost:** fuel and tolls for driving, metro fare plus auto fare for the metro option.
 - **Saved commute:** one tap for the trip to work and the trip back home.
 - **Multiple stops:** up to 6 stops (offline) or 8 (live), put in the fastest order. Also car or two-wheeler, avoid tolls, rain mode, and handoff to Google Maps.
+
+## Use OpenStreetMap roads and metro (optional)
+`tools/import-osm.mjs` downloads Bengaluru's roads and Namma Metro from OpenStreetMap through the [Overpass API](https://overpass-api.de) and writes `data/osm-bengaluru.js`. When that file is present, `index.html` plans on the real road network instead of the built-in one. Without it, nothing changes.
+
+```bash
+node tools/import-osm.mjs
+```
+
+Needs Node 18 or later and no packages. The download can take a few minutes and is saved in `.osm-cache/`, so `node tools/import-osm.mjs --from-cache` rebuilds without downloading again. If overpass-api.de is unreachable, run `node tools/import-osm.mjs --print-queries`, run the two queries on [overpass-turbo.eu](https://overpass-turbo.eu) or another Overpass server, export the raw JSON, and build from the files:
+
+```bash
+node tools/import-osm.mjs --roads roads.json --metro metro.json
+```
+
+Other options: `--endpoint URL` for another Overpass server, `--bbox south,west,north,east` (default `12.70,77.30,13.26,77.86`), `--no-secondary` for a smaller network with only motorway, trunk and primary roads, and `--out PATH`. Behind an HTTPS proxy, run with `NODE_USE_ENV_PROXY=1` (Node 22.21 or later).
+
+What the importer keeps:
+- **Roads:** motorway, trunk, primary and secondary roads and their ramps, with real lengths and shapes, one-way streets and `toll=yes`. Junctions less than 70 m apart along a road (dual carriageways, slip roads, roundabouts) become one junction, stretches that just continue the same road are joined, and only the part of the network where every junction can reach every other one is kept.
+- **Metro:** every `route=subway` (or light rail) relation, with stations in running order from its stops, named and placed after the nearest station node. Each line keeps the direction with the most stations.
+
+How the planner uses it:
+- Each OSM road takes its bottleneck severity and flood risk from the built-in road it runs along, so the typical-day traffic model still applies. Roads with no built-in counterpart get a typical value for their class.
+- The built-in junctions, localities, landmarks and metro stations stay as the searchable places, each joined to its nearest OSM junction. Saved commutes keep working.
+- OSM station positions replace the built-in ones line by line. Frequencies, colours and the "lines being built" switch stay as they are. Stations on different lines less than 300 m apart count as one interchange.
+- Because the OSM network has thousands of junctions instead of about 110, routes are searched at whole hours (once for weekdays and once for weekends) and then timed for the exact departure. The map draws secondary roads only once you zoom in.
+- Add `?net=model` to the address to compare against the built-in network.
+
+Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under the Open Database License. The page shows this credit on the map whenever it uses the data.
 
 ## Run the live version
 ```bash
